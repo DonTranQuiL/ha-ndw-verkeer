@@ -1,0 +1,6 @@
+refresh:
+  name: Refresh NDW Verkeer
+  description: Haalt handmatig direct de nieuwste DATEX II XML bestanden op van de NDW servers.
+clear_files:
+  name: Clear Cache & Debug Logs
+  description: Verwijdert de lokale JSON cache bestanden en debug text logs voor alle geconfigureerde NDW instanties.
