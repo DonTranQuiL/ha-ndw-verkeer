@@ -6,8 +6,9 @@
   "domains": ["sensor"],
   "homeassistant": "2023.1.0",
   "hide_default_branch": false,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "iot_class": "cloud_polling"
 
 }
+
 
