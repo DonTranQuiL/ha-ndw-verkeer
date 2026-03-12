@@ -12,7 +12,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Start setup NDW Verkeer voor: %s", entry.entry_id)
     
     coordinator = NDWVerkeerCoordinator(hass, entry)
-    await coordinator.async_config_entry_first_refresh()
+    
+    # SMART BOOT: Use the cache if it exists to prevent long loading times!
+    if coordinator.last_data:
+        _LOGGER.debug("Cache found! Loading instantly to speed up startup.")
+        coordinator.data = coordinator.last_data
+        # Start the heavy download silently in the background so HA isn't blocked
+        entry.async_create_background_task(hass, coordinator.async_request_refresh(), "ndw_bg_refresh")
+    else:
+        _LOGGER.debug("No cache found. Starting the heavy first download...")
+        await coordinator.async_config_entry_first_refresh()
     
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
