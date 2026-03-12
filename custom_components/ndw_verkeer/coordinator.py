@@ -25,10 +25,11 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         self.feeds = [FEED_CLOSURES, FEED_ROADWORKS, FEED_PLANNED]
         
         self.cache = NDWCache(hass, self.instance_name)
-        # FIX: We laden de cache hier niet meer in, dat doet __init__.py nu in de achtergrond
+        # Start met een lege lijst, de cache wordt via __init__.py op de achtergrond ingeladen
         self.last_data = [] 
         self.error_count = 0
         self.last_update_success_timestamp = None
+        self._is_first_run = True  # Zorgt ervoor dat we bij opstarten de zware download overslaan als we cache hebben
         
         scan_interval = config_entry.options.get("scan_interval", 18000)
         super().__init__(
@@ -36,7 +37,30 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval)
         )
 
+    def _write_debug_file_sync(self, debug_path, content):
+        """Helper functie om debug file synchroon op de achtergrond weg te schrijven."""
+        try:
+            with open(debug_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception as e:
+            _LOGGER.error("Kon NDW debug file niet wegschrijven: %s", e)
+
+    def _clear_debug_file_sync(self, debug_path):
+        """Helper functie om debug file synchroon op de achtergrond te verwijderen."""
+        if os.path.exists(debug_path):
+            try:
+                os.remove(debug_path)
+            except Exception:
+                pass
+
     async def _async_update_data(self):
+        # Sla de zware download over na een herstart als we al cache hebben!
+        if self._is_first_run and self.last_data:
+            self._is_first_run = False
+            _LOGGER.debug("Eerste run na opstarten: Download overgeslagen, cache gebruikt.")
+            return self.last_data
+        self._is_first_run = False
+
         _LOGGER.debug("NDW data streamen voor termen: %s", self.search_terms)
         session = async_get_clientsession(self.hass)
         
@@ -118,7 +142,6 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
 
             if final_list:
                 self.last_data = final_list
-                # FIX: Schrijf weg in de achtergrond
                 await self.hass.async_add_executor_job(self.cache.save_cache, final_list)
             else:
                 self.last_data = []
@@ -128,8 +151,10 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             self.last_update_success_timestamp = dt_util.utcnow()
             
             debug_log_content += f"SUCCES: {len(final_list)} records.\n"
-            # FIX: Schrijf weg in de achtergrond
-            await self.hass.async_add_executor_job(self._write_debug_file, debug_log_content)
+            
+            current_dir = os.path.dirname(__file__)
+            debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
+            await self.hass.async_add_executor_job(self._write_debug_file_sync, debug_path, debug_log_content)
             
             return self.last_data
             
@@ -138,16 +163,8 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Update mislukt voor NDW: %s", err)
             return self.last_data
 
-    def _write_debug_file(self, content):
-        current_dir = os.path.dirname(__file__)
-        debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
-        try:
-            with open(debug_path, "w", encoding="utf-8") as f: f.write(content)
-        except Exception: pass
-            
     def clear_debug_file(self):
         current_dir = os.path.dirname(__file__)
         debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
-        if os.path.exists(debug_path):
-            try: os.remove(debug_path)
-            except Exception: pass
+        # Dit moet in principe ook via async_add_executor_job worden aangeroepen vanuit __init__.py
+        self._clear_debug_file_sync(debug_path)
