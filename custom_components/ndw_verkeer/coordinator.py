@@ -25,11 +25,12 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         self.feeds = [FEED_CLOSURES, FEED_ROADWORKS, FEED_PLANNED]
         
         self.cache = NDWCache(hass, self.instance_name)
-        self.last_data = self.cache.load_cache()
+        # FIX: We laden de cache hier niet meer in, dat doet __init__.py nu in de achtergrond
+        self.last_data = [] 
         self.error_count = 0
         self.last_update_success_timestamp = None
         
-        scan_interval = config_entry.options.get("scan_interval", 900)
+        scan_interval = config_entry.options.get("scan_interval", 18000)
         super().__init__(
             hass, _LOGGER, name=DOMAIN, 
             update_interval=timedelta(seconds=scan_interval)
@@ -41,16 +42,12 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         
         all_situations = {}
         debug_log_content = f"NDW VERKEER DEBUG LOG\nZoektermen: {self.search_terms}\n\n"
-        
         now = dt_util.utcnow()
         
         try:
             for feed_url in self.feeds:
-                _LOGGER.debug("Streamen & Parsen: %s", feed_url)
-                
                 async with session.get(feed_url) as response:
-                    if response.status != 200:
-                        continue
+                    if response.status != 200: continue
                         
                     parser = XMLPullParser(['end'])
                     decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
@@ -63,10 +60,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                             
                         for event, elem in parser.read_events():
                             if elem.tag.endswith("situationRecord"):
-                                
                                 record_id = elem.attrib.get("id", "onbekend")
-                                
-                                # DEDUPLICATIE STAP 1: Bepaal het basis-project-ID
                                 parts = record_id.split("_")
                                 base_id = "_".join(parts[:2]) if len(parts) >= 2 else record_id
                                 
@@ -76,30 +70,20 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                                 
                                 for child in elem.iter():
                                     tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                                    
-                                    if tag_name == "overallStartTime" and child.text:
-                                        start_time = child.text
-                                    elif tag_name == "overallEndTime" and child.text:
-                                        end_time = child.text
+                                    if tag_name == "overallStartTime" and child.text: start_time = child.text
+                                    elif tag_name == "overallEndTime" and child.text: end_time = child.text
                                     elif tag_name == "value" and child.text:
                                         text_val = child.text.strip()
                                         tl = text_val.lower()
-                                        
-                                        # Filter onzin, PDF's, en nutteloze zinnen er keihard uit!
                                         invalid_starts = ("beperking", "omleiding", "volg route", "geen gevolgen", "afsluiting", "doorgang", "contactpersoon", "ja, alleen", "let op", "verkeersbelemmering", "werkzaamheden", "tijdens")
                                         if len(text_val) > 4 and not tl.startswith(invalid_starts) and ".pdf" not in tl and "verkeersbesluit" not in tl:
-                                            if text_val not in description_parts:
-                                                description_parts.append(text_val)
+                                            if text_val not in description_parts: description_parts.append(text_val)
                                                 
-                                # DATUM FILTER: Gooi weg wat al verlopen is
                                 is_expired = False
                                 if end_time != "Onbekend":
                                     try:
-                                        end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-                                        if end_dt < now:
-                                            is_expired = True 
-                                    except Exception:
-                                        pass
+                                        if datetime.fromisoformat(end_time.replace("Z", "+00:00")) < now: is_expired = True 
+                                    except Exception: pass
                                         
                                 if is_expired:
                                     elem.clear()
@@ -107,60 +91,45 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
 
                                 type_hinder = elem.attrib.get("{http://www.w3.org/2001/XMLSchema-instance}type", "Verkeershinder")
                                 type_hinder = type_hinder.split(":")[-1]
-
                                 final_desc = " - ".join(description_parts) if description_parts else "Geen details beschikbaar"
 
-                                # Controleer of jouw zoekterm er in staat
                                 if any(term in final_desc.lower() for term in self.search_terms):
                                     if base_id not in all_situations or len(final_desc) > len(all_situations[base_id]["description"]):
                                         all_situations[base_id] = {
-                                            "id": base_id,
-                                            "type": type_hinder,
-                                            "start": start_time,
-                                            "end": end_time,
-                                            "description": final_desc
+                                            "id": base_id, "type": type_hinder, "start": start_time,
+                                            "end": end_time, "description": final_desc
                                         }
-                                    
                                 elem.clear()
 
-            # DEDUPLICATIE STAP 2: Rekening houden met de datum! 
             unique_desc_situations = {}
             for sit in all_situations.values():
-                # Combineer beschrijving en starttijd. Zo blijven de 3 fietsexamens netjes apart staan!
                 unique_key = f"{sit['description']}_{sit['start']}"
                 if unique_key not in unique_desc_situations:
                     unique_desc_situations[unique_key] = sit
             
             final_list = list(unique_desc_situations.values())
-            
-            # Sorteer alles chronologisch (actuele en eerstvolgende bovenaan)
             final_list.sort(key=lambda x: x.get("start", ""))
             
-            # Zet de lelijke ISO datums om naar mooie "DD-MM-YYYY HH:MM" notatie voor je dashboard
             for item in final_list:
-                try:
-                    s_dt = datetime.fromisoformat(item["start"].replace("Z", "+00:00"))
-                    item["start"] = s_dt.strftime("%d-%m-%Y %H:%M")
-                except Exception:
-                    pass
-                try:
-                    e_dt = datetime.fromisoformat(item["end"].replace("Z", "+00:00"))
-                    item["end"] = e_dt.strftime("%d-%m-%Y %H:%M")
-                except Exception:
-                    pass
+                try: item["start"] = datetime.fromisoformat(item["start"].replace("Z", "+00:00")).strftime("%d-%m-%Y %H:%M")
+                except Exception: pass
+                try: item["end"] = datetime.fromisoformat(item["end"].replace("Z", "+00:00")).strftime("%d-%m-%Y %H:%M")
+                except Exception: pass
 
             if final_list:
                 self.last_data = final_list
-                self.cache.save_cache(final_list)
+                # FIX: Schrijf weg in de achtergrond
+                await self.hass.async_add_executor_job(self.cache.save_cache, final_list)
             else:
                 self.last_data = []
-                self.cache.save_cache([])
+                await self.hass.async_add_executor_job(self.cache.save_cache, [])
                 
             self.error_count = 0
             self.last_update_success_timestamp = dt_util.utcnow()
             
-            debug_log_content += f"SUCCES: {len(final_list)} actuele/toekomstige records gevonden na deduplicatie.\n"
-            self._write_debug_file(debug_log_content)
+            debug_log_content += f"SUCCES: {len(final_list)} records.\n"
+            # FIX: Schrijf weg in de achtergrond
+            await self.hass.async_add_executor_job(self._write_debug_file, debug_log_content)
             
             return self.last_data
             
@@ -173,16 +142,12 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         current_dir = os.path.dirname(__file__)
         debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
         try:
-            with open(debug_path, "w", encoding="utf-8") as f:
-                f.write(content)
-        except Exception as e:
-            _LOGGER.error("Kon NDW debug file niet wegschrijven: %s", e)
+            with open(debug_path, "w", encoding="utf-8") as f: f.write(content)
+        except Exception: pass
             
     def clear_debug_file(self):
         current_dir = os.path.dirname(__file__)
         debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
         if os.path.exists(debug_path):
-            try:
-                os.remove(debug_path)
-            except Exception:
-                pass
+            try: os.remove(debug_path)
+            except Exception: pass
