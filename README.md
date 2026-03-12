@@ -5,7 +5,7 @@
 
 This custom component for Home Assistant allows you to monitor live traffic incidents, roadworks, and planned events for any specific road or municipality in the Netherlands. It streams data directly from the official [NDW (Nationaal Dataportaal Wegverkeer)](https://opendata.ndw.nu/) Datex II XML feeds, keeping you informed about what is happening on your daily commute or in your neighborhood.
 
-> **Disclaimer:** This integration relies on massive, public XML feeds from the Dutch government. To process these efficiently without crashing Home Assistant, it uses advanced *in-memory stream parsing*. To avoid spamming the NDW servers, the absolute minimum scan interval is 300 seconds (5 minutes), though a higher interval like 18000 seconds (5 hours) is the default and recommended for general planning.
+> **Disclaimer:** This integration relies on massive, public XML feeds from the Dutch government. To process these efficiently without crashing Home Assistant, it uses advanced *in-memory stream parsing*. To avoid spamming the NDW servers, the absolute minimum scan interval is 18000 seconds (5 hours), no scan time or a extreme high one is the best so you can trigger it from the actions tab in dev options and recommended for general planning.
 
 This integration was created with significant collaboration, testing, and debugging from **TranQuiL (@Malosaaa)**.
 
