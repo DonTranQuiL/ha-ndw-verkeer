@@ -1,6 +1,4 @@
-"""Test the KNMI Seismisch integration."""
-
-from custom_components.entsoe_prijzen.const import DOMAIN
+from custom_components.ndw_verkeer.const import DOMAIN
 
 
 async def test_domain_name():
