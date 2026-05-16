@@ -1,14 +1,8 @@
 {
   "name": "ha-ndw-verkeer",
   "content_in_root": false,
-  "render_readme": true,
-  "country": ["NL"],
-  "domains": ["sensor"],
-  "homeassistant": "2023.1.0",
-  "hide_default_branch": false,
-  "version": "1.0.3",
-  "iot_class": "cloud_polling"
-
+  "country": "NL",
+  "homeassistant": "2023.1.0"
 }
 
 
