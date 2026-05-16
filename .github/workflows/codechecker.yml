@@ -33,7 +33,7 @@ jobs:
           ruff format .
 
       - name: Commit changes back to branch
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           # Automatically commits the fixes. [skip ci] prevents an infinite loop of checks.
           commit_message: "style: auto-fix ruff linting and formatting [skip ci]"
