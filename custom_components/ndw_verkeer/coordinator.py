@@ -71,7 +71,8 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         try:
             for feed_url in self.feeds:
                 async with session.get(feed_url) as response:
-                    if response.status != 200: continue
+                    if response.status != 200: 
+                        continue
                         
                     parser = XMLPullParser(['end'])
                     decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
@@ -94,20 +95,25 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                                 
                                 for child in elem.iter():
                                     tag_name = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-                                    if tag_name == "overallStartTime" and child.text: start_time = child.text
-                                    elif tag_name == "overallEndTime" and child.text: end_time = child.text
+                                    if tag_name == "overallStartTime" and child.text: 
+                                        start_time = child.text
+                                    elif tag_name == "overallEndTime" and child.text: 
+                                        end_time = child.text
                                     elif tag_name == "value" and child.text:
                                         text_val = child.text.strip()
                                         tl = text_val.lower()
                                         invalid_starts = ("beperking", "omleiding", "volg route", "geen gevolgen", "afsluiting", "doorgang", "contactpersoon", "ja, alleen", "let op", "verkeersbelemmering", "werkzaamheden", "tijdens")
                                         if len(text_val) > 4 and not tl.startswith(invalid_starts) and ".pdf" not in tl and "verkeersbesluit" not in tl:
-                                            if text_val not in description_parts: description_parts.append(text_val)
+                                            if text_val not in 
+                                                description_parts: description_parts.append(text_val)
                                                 
                                 is_expired = False
                                 if end_time != "Onbekend":
                                     try:
-                                        if datetime.fromisoformat(end_time.replace("Z", "+00:00")) < now: is_expired = True 
-                                    except Exception: pass
+                                        if datetime.fromisoformat(end_time.replace("Z", "+00:00")) < now: 
+                                            is_expired = True 
+                                    except Exception: 
+                                        pass
                                         
                                 if is_expired:
                                     elem.clear()
@@ -135,10 +141,15 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             final_list.sort(key=lambda x: x.get("start", ""))
             
             for item in final_list:
-                try: item["start"] = datetime.fromisoformat(item["start"].replace("Z", "+00:00")).strftime("%d-%m-%Y %H:%M")
-                except Exception: pass
-                try: item["end"] = datetime.fromisoformat(item["end"].replace("Z", "+00:00")).strftime("%d-%m-%Y %H:%M")
-                except Exception: pass
+                try: 
+                    item["start"] = datetime.fromisoformat(item["start"].replace("Z", "+00:00")).strftime("%d-%m-%Y %H:%M")
+                except Exception: 
+                    pass
+                
+                try: 
+                    item["end"] = datetime.fromisoformat(item["end"].replace("Z", "+00:00")).strftime("%d-%m-%Y %H:%M")
+                except Exception: 
+                    pass
 
             if final_list:
                 self.last_data = final_list
