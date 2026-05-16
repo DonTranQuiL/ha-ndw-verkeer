@@ -1,7 +1,11 @@
 # NDW Verkeer Integration for Home Assistant
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)][hacs]
-[![Project Maintenance][maintenance_badge]](https://github.com/Malosaaa/ha-ndw-verkeer)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
+[![Maintained](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/DonTranQuiL/ndw_verkeer/commits/main)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.5+-blue.svg)](https://www.home-assistant.io/)
+[![Code Checker](https://github.com/DonTranQuiL/ha-ndw-verkeer/actions/workflows/codechecker.yml/badge.svg)](https://github.com/DonTranQuiL/ndw_verkeer/actions)
+[![HACS Validation](https://github.com/DonTranQuiL/ha-ndw-verkeer/actions/workflows/hacs.yaml/badge.svg)](https://github.com/DonTranQuiL/ndw_verkeer/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/DonTranQuiL/ha-ndw-verkeer?style=flat-square)](https://github.com/DonTranQuiL/ndw_verkeer/releases)
 
 This custom component for Home Assistant allows you to monitor live traffic incidents, roadworks, and planned events for any specific road or municipality in the Netherlands. It streams data directly from the official [NDW (Nationaal Dataportaal Wegverkeer)](https://opendata.ndw.nu/) Datex II XML feeds, keeping you informed about what is happening on your daily commute or in your neighborhood.
 
