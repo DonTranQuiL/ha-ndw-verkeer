@@ -104,8 +104,8 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                                         tl = text_val.lower()
                                         invalid_starts = ("beperking", "omleiding", "volg route", "geen gevolgen", "afsluiting", "doorgang", "contactpersoon", "ja, alleen", "let op", "verkeersbelemmering", "werkzaamheden", "tijdens")
                                         if len(text_val) > 4 and not tl.startswith(invalid_starts) and ".pdf" not in tl and "verkeersbesluit" not in tl:
-                                            if text_val not in 
-                                                description_parts: description_parts.append(text_val)
+                                            if text_val not in description_parts: 
+                                                description_parts.append(text_val)
                                                 
                                 is_expired = False
                                 if end_time != "Onbekend":
