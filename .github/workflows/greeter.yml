@@ -13,10 +13,12 @@ permissions:
 jobs:
   welcome:
     runs-on: ubuntu-latest
+    # MAGIC TRICK 1: Don't run this job if the person opening the PR is a bot!
+    if: github.actor != 'dependabot[bot]' && github.actor != 'github-actions[bot]'
     steps:
       - name: Welcome New Issues
         if: github.event_name == 'issues' && github.event.action == 'opened'
-        uses: actions/github-script@v9
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.createComment({
@@ -28,12 +30,13 @@ jobs:
 
       - name: Welcome Pull Requests
         if: github.event_name == 'pull_request_target' && github.event.action == 'opened'
-        uses: actions/github-script@v9
+        uses: actions/github-script@v7
         with:
+          # MAGIC TRICK 2: Use JavaScript backticks (`) and ${context.repo.repo} to dynamically print the repo name
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: "🎉 Thank you for contributing to KNMI Seismisch! Your Pull Request has been received. Our automated tests (Hassfest, Ruff, etc.) will run shortly. If anything fails, don't worry—just check the logs and update your branch!"
+              body: `🎉 Thank you for contributing to **${context.repo.repo}**! Your Pull Request has been received. Our automated tests (Hassfest, Ruff, etc.) will run shortly. If anything fails, don't worry—just check the logs and update your branch!`
             })
