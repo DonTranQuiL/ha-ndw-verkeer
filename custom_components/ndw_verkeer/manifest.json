@@ -1,11 +1,17 @@
 {
   "domain": "ndw_verkeer",
   "name": "NDW Verkeer",
-  "codeowners": ["@Malosaaa"],
+  "after_dependencies": [],
+  "codeowners": [
+    "@malosaaa"
+  ],
   "config_flow": true,
-  "documentation": "https://github.com/Malosaaa/ha-ndw-verkeer",
   "dependencies": [],
-  "requirements": [],
+  "documentation": "https://github.com/Malosaaa/ha-ndw-verkeer",
+  "integration_type": "service",
   "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Malosaaa/ha-ndw-verkeer/issues",
+  "quality_scale": "bronze",
+  "requirements": [],
   "version": "1.0.3"
 }
