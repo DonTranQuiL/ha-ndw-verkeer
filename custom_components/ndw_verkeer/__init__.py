@@ -7,20 +7,23 @@ from .coordinator import NDWVerkeerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Start setup NDW Verkeer voor: %s", entry.entry_id)
-    
+
     coordinator = NDWVerkeerCoordinator(hass, entry)
-    coordinator.last_data = await hass.async_add_executor_job(coordinator.cache.load_cache)
-    
+    coordinator.last_data = await hass.async_add_executor_job(
+        coordinator.cache.load_cache
+    )
+
     # Start de timer. Onze nieuwe _is_first_run flag voorkomt dat hij direct gaat downloaden!
     await coordinator.async_config_entry_first_refresh()
-    
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     async def handle_refresh(call: ServiceCall):
         for coord in hass.data[DOMAIN].values():
-            coord._is_first_run = False # Forceer download bij handmatige refresh knop
+            coord._is_first_run = False  # Forceer download bij handmatige refresh knop
             await coord.async_request_refresh()
 
     async def handle_clear_files(call: ServiceCall):
@@ -35,8 +38,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(update_listener))
     return True
 
+
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_reload(entry.entry_id)
+
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
