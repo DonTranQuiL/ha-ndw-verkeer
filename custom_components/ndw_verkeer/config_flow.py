@@ -28,9 +28,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             search_terms = user_input.get(CONF_SEARCH_TERMS)
             scan_interval = user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
-            if not instance_name: errors[CONF_INSTANCE_NAME] = "required"
-            if not search_terms: errors[CONF_SEARCH_TERMS] = "required"
-            if not validate_scan_interval(scan_interval): errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
+            if not instance_name: 
+                errors[CONF_INSTANCE_NAME] = "required"
+            if not search_terms: 
+                errors[CONF_SEARCH_TERMS] = "required"
+            if not validate_scan_interval(scan_interval): 
+                errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
 
             if not errors:
                 for entry in self._async_current_entries():
