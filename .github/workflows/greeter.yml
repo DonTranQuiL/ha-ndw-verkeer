@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Welcome New Issues
         if: github.event_name == 'issues' && github.event.action == 'opened'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             github.rest.issues.createComment({
@@ -28,7 +28,7 @@ jobs:
 
       - name: Welcome Pull Requests
         if: github.event_name == 'pull_request_target' && github.event.action == 'opened'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             github.rest.issues.createComment({
