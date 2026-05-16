@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Get Integration Domain
+        # This step automatically finds the name of your folder (e.g., entsoe_prijzen, knmi_seismisch)
+        run: |
+          DOMAIN=$(ls custom_components/)
+          echo "DOMAIN=$DOMAIN" >> $GITHUB_ENV
+
+      - name: Update manifest version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+          tmp=$(mktemp)
+          jq --arg version "$VERSION" '.version = $version' \
+            custom_components/${{ env.DOMAIN }}/manifest.json > "$tmp"
+
+          mv "$tmp" custom_components/${{ env.DOMAIN }}/manifest.json
+
+      - name: Commit and Push Changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Bump manifest version to ${{ github.ref_name }} [skip ci]"
+          file_pattern: "custom_components/${{ env.DOMAIN }}/manifest.json"
+          branch: main 
+
+      - name: Create ZIP
+        run: |
+          cd custom_components/${{ env.DOMAIN }}
+          zip -r ${{ env.DOMAIN }}.zip ./
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: custom_components/${{ env.DOMAIN }}/${{ env.DOMAIN }}.zip
