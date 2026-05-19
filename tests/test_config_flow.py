@@ -8,6 +8,7 @@ from custom_components.ndw_verkeer.const import (
     CONF_INSTANCE_NAME,
     CONF_SEARCH_TERMS,
     CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
 )
 
 @pytest.fixture(autouse=True)
@@ -15,8 +16,6 @@ def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable loading custom components during testing."""
     yield
 
-@pytest.mark.asyncio
-async def test_form_user_success(hass):
 
 @pytest.mark.asyncio
 async def test_form_user_success(hass):
