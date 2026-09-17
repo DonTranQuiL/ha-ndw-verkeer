@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from homeassistant.const import EntityCategory
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ndw_verkeer.const import DOMAIN, MANUFACTURER
-from custom_components.ndw_verkeer.sensor import NDWSensor, NDWDiagnosticSensor
+from custom_components.ndw_verkeer.sensor import NDWDiagnosticSensor, NDWSensor
 
 
 @pytest.fixture
