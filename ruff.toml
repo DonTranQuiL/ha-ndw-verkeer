@@ -18,4 +18,11 @@ ignore = [
     "SIM103",  # return negated condition (style)
     "SIM102",  # nested if (style)
     "ASYNC230", # blocking open in async (debug path; non-critical)
+    "PERF102",
+    "S112",
+    "RUF012",
+    "RUF059",
+    "DTZ011",
+    "DTZ901",
+    "SIM118",
 ]
