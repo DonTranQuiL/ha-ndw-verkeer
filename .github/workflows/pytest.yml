@@ -33,7 +33,7 @@ jobs:
           pytest tests/ -v --cov=custom_components/ndw_verkeer/ --cov-report=xml
 
       - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
