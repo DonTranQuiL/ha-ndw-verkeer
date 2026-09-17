@@ -1,6 +1,7 @@
 import logging
-from homeassistant.core import HomeAssistant, ServiceCall
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, ServiceCall
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import NDWVerkeerCoordinator

@@ -1,5 +1,6 @@
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import EntityCategory
+
 from .const import DOMAIN, MANUFACTURER
 
 
