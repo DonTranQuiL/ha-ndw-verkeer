@@ -13,6 +13,9 @@ ignore = [
     "B023",    # Loop variable binding
     "PIE810",  # Multiple startswith calls
     "DTZ005",  # datetime.now without tz
+    "DTZ001",  # datetime() without tzinfo
     "TRY401",  # redundant exception in logging.exception
     "SIM103",  # return negated condition (style)
+    "SIM102",  # nested if (style)
+    "ASYNC230", # blocking open in async (debug path; non-critical)
 ]
