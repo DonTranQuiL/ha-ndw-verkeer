@@ -1,18 +1,18 @@
 """Config flow for NDW Verkeershinder integration."""
 
 import logging
-import voluptuous as vol
 
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
-    DOMAIN,
     CONF_INSTANCE_NAME,
-    CONF_SEARCH_TERMS,
     CONF_SCAN_INTERVAL,
+    CONF_SEARCH_TERMS,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
 )
 
 _LOGGER = logging.getLogger(__name__)
