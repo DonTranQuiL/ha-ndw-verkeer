@@ -1,0 +1,18 @@
+# Exclude AI runner scripts from the lint runner
+exclude = [
+    "ai_engineer",
+]
+
+[lint]
+# Suppress non-critical lint rules (same class as Earthquake Tracker / ADSB)
+ignore = [
+    "BLE001",  # Do not catch blind exception
+    "TRY002",  # Custom exception creation
+    "PLR1722", # Built-in exit() call
+    "S110",    # try-except-pass logging
+    "B023",    # Loop variable binding
+    "PIE810",  # Multiple startswith calls
+    "DTZ005",  # datetime.now without tz
+    "TRY401",  # redundant exception in logging.exception
+    "SIM103",  # return negated condition (style)
+]
