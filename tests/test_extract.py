@@ -32,9 +32,9 @@ def _load_coordinator_module():
         mod.__path__ = []
         sys.modules[name] = mod
 
-    sys.modules[
-        "homeassistant.helpers.aiohttp_client"
-    ].async_get_clientsession = lambda hass: None
+    sys.modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = (
+        lambda hass: None
+    )
 
     class _DataUpdateCoordinator:
         def __init__(self, *args, **kwargs):
