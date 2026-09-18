@@ -67,6 +67,28 @@ This custom component for Home Assistant allows you to monitor live traffic inci
 
 This integration was created with significant collaboration, testing, and debugging from **TranQuiL (@Malosaaa)**.
 
+
+## Lovelace card
+
+Copy `ndw_verkeer-card.js` into `/config/www/` and add a resource:
+
+```yaml
+lovelace:
+  resources:
+    - url: /local/ndw_verkeer-card.js
+      type: module
+```
+
+Card config (use the master NDW Verkeer entity, not a diagnostic):
+
+```yaml
+type: custom:ndw_verkeer-card
+entity: sensor.ndw_verkeer_<your_instance>
+title: NDW Verkeer
+```
+
+Prefer recorder exclude on that master sensor: attributes `items` / `history` can be large.
+
 ***
 ## 🚀 Key Features
 

@@ -53,13 +53,18 @@ class NDWSensor(CoordinatorEntity, SensorEntity):
             return {}
 
         latest = self.coordinator.data[0]
+        items = list(self.coordinator.data)
         return {
             "id": latest.get("id", ""),
+            "type": latest.get("type", ""),
             "start": latest.get("start", "Onbekend"),
             "end": latest.get("end", "Onbekend"),
             "description": latest.get("description", ""),
-            # Full list can grow large; prefer recorder exclude on this entity
-            "history": self.coordinator.data[1:],
+            "count": len(items),
+            # Full list for the Lovelace card. Prefer recorder exclude on this entity.
+            "items": items,
+            # Remaining matches (legacy). Prefer items for new dashboards.
+            "history": items[1:],
         }
 
 
