@@ -73,6 +73,16 @@ def _local_tag(tag: str) -> str:
     return tag.split("}")[-1] if "}" in tag else tag
 
 
+# Work-category / equipment labels that DATEX sometimes puts in location-ish fields.
+_JUNK_LOCATION_RE = re.compile(
+    r"^(bouw|takel|bouw\s*/\s*takel|inspectie|markering|asfalt|"
+    r"riolering|kabels?\s*(en|&)\s*leidingen|groenvoorziening|"
+    r"verharding|bestrating|civiel|masten?|borden?|"
+    r"werkzaamheden|onderhoud|evenement)\b",
+    re.IGNORECASE,
+)
+
+
 def _is_noise_value(text: str) -> bool:
     tl = text.lower().strip()
     if not tl:
@@ -86,16 +96,77 @@ def _is_noise_value(text: str) -> bool:
     return False
 
 
-def _looks_like_location(text: str) -> bool:
-    """Heuristic: street-like or free-text place that is not only municipality."""
-    if _MUNICIPALITY_RE.match(text.strip()):
-        return False
-    if _is_noise_value(text):
-        return False
-    if _ROADISH_RE.search(text):
+def _normalize_location_candidate(text: str) -> str:
+    """Drop empty comma parts from values like 'Bouw/Takel, ,'."""
+    parts = [part.strip() for part in (text or "").split(",")]
+    parts = [part for part in parts if part]
+    return ", ".join(parts).strip(" ,")
+
+
+def _part_is_category_junk(part: str) -> bool:
+    """True for work-category labels that are not a street by themselves."""
+    cleaned = (part or "").strip()
+    if not cleaned:
         return True
-    # Medium free-text that is not a tiny status word
-    return len(text.strip()) >= 8 and " " in text.strip()
+    if _JUNK_LOCATION_RE.match(cleaned):
+        return True
+    if "/" in cleaned and not _ROADISH_RE.search(cleaned) and len(cleaned) <= 40:
+        return True
+    return False
+
+
+def _polish_location(text: str) -> str:
+    """Keep street/road fragments; drop category junk and empty commas.
+
+    Examples:
+    - 'Bouw/Takel, ,' -> ''
+    - 'Bouw/Takel, , Coriovallumstraat BRM' -> 'Coriovallumstraat BRM'
+    - 'Coriovallumstraat' -> 'Coriovallumstraat'
+    """
+    parts = [part.strip() for part in (text or "").split(",") if part.strip()]
+    kept: list[str] = []
+    for part in parts:
+        if _part_is_category_junk(part) and not _ROADISH_RE.search(part):
+            continue
+        if _part_is_category_junk(part) and _ROADISH_RE.search(part):
+            # Strip a leading category token before the first roadish word.
+            match = _ROADISH_RE.search(part)
+            if match:
+                trimmed = part[match.start() :].strip(" -/")
+                if trimmed:
+                    kept.append(trimmed)
+            continue
+        if _MUNICIPALITY_RE.match(part) or _is_noise_value(part):
+            continue
+        kept.append(part)
+    return ", ".join(kept).strip(" ,")
+
+
+def _is_junk_location(text: str) -> bool:
+    """Reject work-category labels and empty leftovers as streets."""
+    cleaned = _polish_location(text)
+    if not cleaned:
+        return True
+    if _is_noise_value(cleaned):
+        return True
+    if _MUNICIPALITY_RE.match(cleaned):
+        return True
+    if _part_is_category_junk(cleaned) and not _ROADISH_RE.search(cleaned):
+        return True
+    if len(cleaned) < 3:
+        return True
+    return False
+
+
+def _looks_like_location(text: str) -> bool:
+    """Heuristic: street-like place; not municipality, noise, or work category."""
+    cleaned = _polish_location(text) or _normalize_location_candidate(text)
+    if _is_junk_location(cleaned):
+        return False
+    if _ROADISH_RE.search(cleaned):
+        return True
+    # Allow junction-style names without street suffix only from dedicated tags.
+    return False
 
 
 def _minute_key(iso_or_display: str) -> str:
@@ -186,14 +257,19 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             elif tag_name == "roadOrCarriagewayOrLaneManagementType":
                 management_type = text_val
             elif tag_name in _LOCATION_TAGS:
-                if text_val not in location_from_tags and not _is_noise_value(text_val):
+                cleaned = _polish_location(text_val)
+                if (
+                    cleaned
+                    and cleaned not in location_from_tags
+                    and not _is_junk_location(cleaned)
+                ):
                     # Skip pure enums stuffed into descriptor-like tags
-                    if text_val.lower() not in {
+                    if cleaned.lower() not in {
                         "maincarriageway",
                         "inboundcarriageway",
                         "outboundcarriageway",
                     }:
-                        location_from_tags.append(text_val)
+                        location_from_tags.append(cleaned)
             elif tag_name == "value":
                 if text_val not in value_texts:
                     value_texts.append(text_val)
@@ -222,22 +298,31 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                 continue
             if _is_noise_value(text_val):
                 continue
-            if _looks_like_location(text_val) and text_val not in location_candidates:
-                # Prefer dedicated tag locations; still keep strong street-like values
-                if _ROADISH_RE.search(text_val) or len(location_from_tags) == 0:
-                    location_candidates.append(text_val)
-            if text_val not in description_parts:
+            cleaned = _polish_location(text_val)
+            if (
+                cleaned
+                and _looks_like_location(cleaned)
+                and cleaned not in location_candidates
+                and _ROADISH_RE.search(cleaned)
+            ):
+                location_candidates.append(cleaned)
+            if text_val not in description_parts and not _is_noise_value(text_val):
                 description_parts.append(text_val)
 
-        # Prefer explicit roadOrJunctionNumber-style tags over long free-text
+        # Prefer explicit roadOrJunctionNumber-style tags over free-text
         location = ""
-        if location_from_tags:
-            location = location_from_tags[0]
-        elif location_candidates:
-            # Prefer shorter street-like over long narrative blobs
-            roadish = [c for c in location_candidates if _ROADISH_RE.search(c)]
-            pool = roadish or location_candidates
-            location = min(pool, key=len)
+        tag_pool = [c for c in location_from_tags if not _is_junk_location(c)]
+        free_pool = [
+            c
+            for c in location_candidates
+            if not _is_junk_location(c) and _ROADISH_RE.search(c)
+        ]
+        if tag_pool:
+            # Prefer roadish tag values when present
+            roadish_tags = [c for c in tag_pool if _ROADISH_RE.search(c)]
+            location = (roadish_tags or tag_pool)[0]
+        elif free_pool:
+            location = min(free_pool, key=len)
 
         # If location equals a description part, keep narrative without duplicating
         narrative = [

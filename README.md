@@ -95,6 +95,10 @@ The card shows **location** as the title line (street/road when NDW provides it)
 
 Prefer recorder exclude on that master sensor: attributes `items` / `history` can be large.
 
+### Beta 1.0.5-beta.4 notes
+* Drops work-category junk from `location` (e.g. `Bouw/Takel, ,`).
+* Card title falls back to description when no street is available.
+
 ### Beta 1.0.5-beta.3 notes
 * Extracts `location` / `municipality` from DATEX tags (`roadOrJunctionNumber`, road-like `value` texts, etc.) instead of leaving only "Gemeente X".
 * Softer description filters (still skips `.pdf` / verkeersbesluit / contact lines).

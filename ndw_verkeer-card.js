@@ -1,5 +1,5 @@
 /**
- * NDW Verkeer Lovelace card (1.0.5-beta.3).
+ * NDW Verkeer Lovelace card (1.0.5-beta.4).
  * Custom element: ndw_verkeer-card
  * Point entity at the master NDW Verkeer sensor (attributes.items).
  *
@@ -291,14 +291,14 @@ class NdwVerkeerCard extends HTMLElement {
     if (loc) {
       return loc;
     }
-    const muni = (item.municipality || "").trim();
-    if (muni) {
-      return muni;
-    }
-    // Fall back to first chunk of description
+    // Prefer description over municipality when DATEX has no street
     const desc = (item.description || "").trim();
     if (desc) {
       return desc.length > 80 ? `${desc.slice(0, 79)}…` : desc;
+    }
+    const muni = (item.municipality || "").trim();
+    if (muni) {
+      return muni;
     }
     return "Onbekende locatie";
   }
@@ -337,6 +337,10 @@ class NdwVerkeerCard extends HTMLElement {
           item.municipality && item.municipality !== title
             ? `<span class="muni">${this._esc(item.municipality)}</span>`
             : "";
+        const showDesc =
+          shortDesc && shortDesc !== title
+            ? `<p>${this._esc(shortDesc)}</p>`
+            : "";
         return `<article class="row ${open ? "open" : ""}" data-action="toggle" data-id="${this._esc(id)}">
           <div class="row-top">
             <span class="pill">${meta.icon} ${this._esc(meta.label)}</span>
@@ -344,7 +348,7 @@ class NdwVerkeerCard extends HTMLElement {
           </div>
           <h3 class="loc">${this._esc(title)}</h3>
           ${muni}
-          <p>${this._esc(shortDesc)}</p>
+          ${showDesc}
         </article>`;
       })
       .join("");

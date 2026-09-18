@@ -164,6 +164,48 @@
         </generalPublicComment>
         <roadOrJunctionNumber>Stationsplein</roadOrJunctionNumber>
       </situationRecord>
+
+      <!-- Junk category only in roadOrJunctionNumber (Maastricht probe town) -->
+      <situationRecord id="NDW03_486073_RSC_1"
+        xsi:type="MaintenanceWorks">
+        <situationRecordCreationTime>2026-09-01T13:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T13:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>Gemeente Maastricht</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-23T06:00:00Z</overallStartTime>
+            <overallEndTime>2026-10-01T14:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Snelheidsbeperking</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <groupOfLocations>
+          <locationContainedInItinerary>
+            <location>
+              <pointByCoordinates>
+                <pointCoordinates>
+                  <latitude>50.85</latitude>
+                  <longitude>5.69</longitude>
+                </pointCoordinates>
+              </pointByCoordinates>
+            </location>
+          </locationContainedInItinerary>
+        </groupOfLocations>
+        <roadOrJunctionNumber>Bouw/Takel, ,</roadOrJunctionNumber>
+      </situationRecord>
     </situation>
   </payloadPublication>
 </d2LogicalModel>

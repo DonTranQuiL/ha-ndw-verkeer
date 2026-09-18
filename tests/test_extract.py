@@ -176,3 +176,18 @@ def test_search_matches_location_field(now_fixed):
     parsed = coord._extract_situation(reroute, now_fixed)
     assert parsed is not None
     assert parsed["location"] == "Stationsplein"
+
+
+def test_junk_bouw_takel_rejected_as_location(now_fixed):
+    coord = _coord("Maastricht")
+    junk = None
+    for elem in _records():
+        if elem.attrib.get("id", "").startswith("NDW03_486073"):
+            junk = elem
+            break
+    assert junk is not None
+    parsed = coord._extract_situation(junk, now_fixed)
+    assert parsed is not None
+    assert parsed["location"] == ""
+    assert parsed["municipality"] == "Gemeente Maastricht"
+    assert "Snelheidsbeperking" in parsed["description"]
