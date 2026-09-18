@@ -484,7 +484,6 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             item["longitude"] = longitude
         return item
 
-
     async def _parse_feed_response(self, response) -> dict[str, dict[str, Any]]:
         """Stream-decompress and pull-parse a gzip XML response into situations."""
         parser = XMLPullParser(["end"])

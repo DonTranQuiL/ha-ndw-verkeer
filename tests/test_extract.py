@@ -32,9 +32,9 @@ def _load_coordinator_module():
         mod.__path__ = []
         sys.modules[name] = mod
 
-    sys.modules[
-        "homeassistant.helpers.aiohttp_client"
-    ].async_get_clientsession = lambda hass: None
+    sys.modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = (
+        lambda hass: None
+    )
 
     class _DataUpdateCoordinator:
         def __init__(self, *args, **kwargs):
@@ -208,7 +208,10 @@ def test_diversion_narrative_is_description_not_location(now_fixed):
     assert parsed is not None
     assert parsed["location"] == ""
     assert "A76" in parsed["description"]
-    assert "omleidingsroute" in parsed["description"].lower() or "omleiding" in parsed["description"].lower()
+    assert (
+        "omleidingsroute" in parsed["description"].lower()
+        or "omleiding" in parsed["description"].lower()
+    )
 
 
 def test_url_uuid_a76_substring_does_not_match_alone(now_fixed):
