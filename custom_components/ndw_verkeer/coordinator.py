@@ -246,9 +246,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             if p != location and not _MUNICIPALITY_RE.match(p)
         ]
         if not narrative and management_type:
-            narrative.append(
-                _MGMT_TYPE_LABELS.get(management_type, management_type)
-            )
+            narrative.append(_MGMT_TYPE_LABELS.get(management_type, management_type))
 
         final_desc = (
             " - ".join(narrative)
@@ -260,7 +258,9 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         haystack = " ".join(
             filter(None, [final_desc, location, municipality, type_hinder])
         ).lower()
-        if self.search_terms and not any(term in haystack for term in self.search_terms):
+        if self.search_terms and not any(
+            term in haystack for term in self.search_terms
+        ):
             return None
 
         item: dict[str, Any] = {
