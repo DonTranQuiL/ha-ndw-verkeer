@@ -13,22 +13,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("Start setup NDW Verkeer voor: %s", entry.entry_id)
 
     coordinator = NDWVerkeerCoordinator(hass, entry)
-    coordinator.last_data = await hass.async_add_executor_job(
-        coordinator.cache.load_cache
+    situations, feed_state, cached_terms = await hass.async_add_executor_job(
+        coordinator.cache.load_cache_bundle
     )
+    coordinator.last_data = situations
+    coordinator._feed_state = feed_state
+    # Force a fresh download when search terms changed since cache was written
+    if cached_terms and list(cached_terms) != list(coordinator.search_terms):
+        coordinator._is_first_run = False
+        _LOGGER.debug(
+            "Zoektermen gewijzigd t.o.v. cache; eerste run downloadt opnieuw."
+        )
 
-    # Start de timer. Onze nieuwe _is_first_run flag voorkomt dat hij direct gaat downloaden!
+    # Start de timer. _is_first_run voorkomt directe download als cache bruikbaar is
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     async def handle_refresh(call: ServiceCall):
         for coord in hass.data[DOMAIN].values():
-            coord._is_first_run = False  # Forceer download bij handmatige refresh knop
+            coord._is_first_run = False  # Forceer download bij handmatige refresh
             await coord.async_request_refresh()
 
     async def handle_clear_files(call: ServiceCall):
         for coord in hass.data[DOMAIN].values():
+            coord._feed_state = {}
             await hass.async_add_executor_job(coord.cache.clear_cache)
             await hass.async_add_executor_job(coord.clear_debug_file)
 
