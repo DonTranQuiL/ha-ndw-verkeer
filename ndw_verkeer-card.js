@@ -1,5 +1,6 @@
 /**
- * NDW Verkeer Lovelace card (1.0.5-beta.4).
+ * NDW Verkeer Lovelace card (1.0.5-beta.5).
+ * List render cap: first 80 filtered items (sensor attributes.items is uncapped).
  * Custom element: ndw_verkeer-card
  * Point entity at the master NDW Verkeer sensor (attributes.items).
  *
@@ -286,6 +287,23 @@ class NdwVerkeerCard extends HTMLElement {
     }
   }
 
+  _isThinTitle(title) {
+    const t = (title || "").trim().toLowerCase();
+    if (!t) return true;
+    const thin = new Set([
+      "rijbaanafsluiting",
+      "rijstrookafsluiting",
+      "wegafsluiting",
+      "snelheidsbeperking",
+      "periodieke rijbaanafsluiting",
+      "geen details beschikbaar",
+      "onbekende locatie",
+    ]);
+    if (thin.has(t)) return true;
+    if (t.startsWith("gemeente ") || t.startsWith("provincie ")) return true;
+    return t.length < 12;
+  }
+
   _titleLine(item) {
     const loc = (item.location || "").trim();
     if (loc) {
@@ -323,6 +341,7 @@ class NdwVerkeerCard extends HTMLElement {
       })
       .join("");
 
+    // Soft UI cap (80). Full list remains on sensor attributes.items / count.
     const rows = items
       .slice(0, 80)
       .map((item, index) => {
@@ -337,8 +356,11 @@ class NdwVerkeerCard extends HTMLElement {
           item.municipality && item.municipality !== title
             ? `<span class="muni">${this._esc(item.municipality)}</span>`
             : "";
+        // When the title is a thin fallback (mgmt label / truncated desc), still
+        // show the description body so users see the full narrative.
+        const thinTitle = this._isThinTitle(title);
         const showDesc =
-          shortDesc && shortDesc !== title
+          shortDesc && (shortDesc !== title || (thinTitle && shortDesc.length > title.length))
             ? `<p>${this._esc(shortDesc)}</p>`
             : "";
         return `<article class="row ${open ? "open" : ""}" data-action="toggle" data-id="${this._esc(id)}">

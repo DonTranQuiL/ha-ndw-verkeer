@@ -95,6 +95,13 @@ The card shows **location** as the title line (street/road when NDW provides it)
 
 Prefer recorder exclude on that master sensor: attributes `items` / `history` can be large.
 
+### Beta 1.0.5-beta.5 notes
+* Keeps **full situation record ids** (no more collapsing MAN/DET/EVE/RSC siblings into one card).
+* Search matches a **raw-ish human haystack** (values + location tags + type + municipality) before heavy cleaning; URL/UUID tags skipped so `A76` does not false-hit attachment GUIDs.
+* Location only accepts **short street/road titles**; diversion narratives and soft phrases like "Weg dicht…" stay in the description. `Bouw/Takel` still never becomes a location.
+* Descriptions keep useful public comments; short soft labels (`Beperking N`, `Omleiding N`) alone stay out; category-only junk is dropped without wiping the only narrative.
+* Lovelace card: thin titles still show the full description body; list UI soft-cap of **80** rows documented (sensor `items` remains complete).
+
 ### Beta 1.0.5-beta.4 notes
 * Drops work-category junk from `location` (e.g. `Bouw/Takel, ,`).
 * Card title falls back to description when no street is available.

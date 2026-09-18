@@ -191,3 +191,90 @@ def test_junk_bouw_takel_rejected_as_location(now_fixed):
     assert parsed["location"] == ""
     assert parsed["municipality"] == "Gemeente Maastricht"
     assert "Snelheidsbeperking" in parsed["description"]
+
+
+BETA5_FIXTURE = Path(__file__).parent / "fixtures" / "situation_beta5_patterns.xml"
+
+
+def _beta5_records():
+    root = fromstring(BETA5_FIXTURE.read_text(encoding="utf-8"))
+    return [el for el in root.iter() if el.tag.endswith("situationRecord")]
+
+
+def test_diversion_narrative_is_description_not_location(now_fixed):
+    coord = _coord("A76")
+    elem = _beta5_records()[0]
+    parsed = coord._extract_situation(elem, now_fixed)
+    assert parsed is not None
+    assert parsed["location"] == ""
+    assert "A76" in parsed["description"]
+    assert "omleidingsroute" in parsed["description"].lower() or "omleiding" in parsed["description"].lower()
+
+
+def test_url_uuid_a76_substring_does_not_match_alone(now_fixed):
+    """A76 inside an attachment UUID must not match when human text lacks A76."""
+    coord = _coord("A76")
+    # Build a minimal record: only UUID url contains a76, human text does not.
+    xml = """<?xml version='1.0' encoding='UTF-8'?>
+    <situationRecord xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:type="MaintenanceWorks" id="NDW03_FALSE_A76_URL">
+      <validity><validityTimeSpecification>
+        <overallStartTime>2026-09-20T06:00:00Z</overallStartTime>
+        <overallEndTime>2026-10-01T16:00:00Z</overallEndTime>
+      </validityTimeSpecification></validity>
+      <generalPublicComment><comment><values>
+        <value>Gemeente Gouda</value>
+      </values></comment></generalPublicComment>
+      <urlLinkAddress>https://example.invalid/attachment/dea76638-a76f-4f3d-8aff-8b2a7632bfba</urlLinkAddress>
+    </situationRecord>
+    """
+    elem = fromstring(xml)
+    parsed = coord._extract_situation(elem, now_fixed)
+    assert parsed is None
+
+
+def test_soft_weg_dicht_not_used_as_location(now_fixed):
+    coord = _coord("Brunssum")
+    elem = _beta5_records()[1]
+    parsed = coord._extract_situation(elem, now_fixed)
+    assert parsed is not None
+    assert parsed["location"] == ""
+    assert "Weg dicht" in parsed["description"]
+    assert "Kermis" in parsed["description"]
+
+
+def test_sibling_man_and_det_keep_distinct_ids(now_fixed):
+    coord = _coord("Heerlen")
+    situations = {}
+    for elem in _beta5_records()[2:4]:
+        parsed = coord._extract_situation(elem, now_fixed)
+        assert parsed is not None
+        situations[parsed["id"]] = parsed
+    assert len(situations) == 2
+    assert "NDW03_84961_MAN" in situations
+    assert "NDW03_84961_DET_295928" in situations
+    assert situations["NDW03_84961_DET_295928"]["location"] == "S100 Beersdalweg"
+    # MAN may have empty location but rich description
+    assert "Beersdalweg" in situations["NDW03_84961_MAN"]["description"]
+    merged = coord._merge_and_format(situations)
+    assert len(merged) == 2
+
+
+def test_long_beperking_sentence_kept_in_description(now_fixed):
+    coord = _coord("Landgraaf")
+    elem = _beta5_records()[4]
+    parsed = coord._extract_situation(elem, now_fixed)
+    assert parsed is not None
+    assert parsed["location"] == ""
+    assert "eenrichtingsverkeer" in parsed["description"]
+    assert "Europaweg" in parsed["description"]
+
+
+def test_bouw_takel_with_street_polishes_to_street(now_fixed):
+    coord = _coord("Kerkrade")
+    elem = _beta5_records()[5]
+    parsed = coord._extract_situation(elem, now_fixed)
+    assert parsed is not None
+    assert parsed["location"] == "Nullandstraat"
+    assert "Bouw/Takel" not in parsed["location"]
+    assert "Weg dicht" in parsed["description"]

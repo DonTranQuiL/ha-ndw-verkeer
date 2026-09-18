@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<d2LogicalModel xmlns="http://datex2.eu/schema/2/2_0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <payloadPublication>
+    <situation>
+      <!-- Diversion narrative must be description, not location; A76 searchable -->
+      <situationRecord id="RWS01_M1173321_REROUTING_1_D2"
+        xsi:type="ReroutingManagement">
+        <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>ZN-ZO [RWS Zuid-Nederland District Zuid-Oost]</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-20T20:00:00Z</overallStartTime>
+            <overallEndTime>2026-09-21T05:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>A76 Li dicht, verkeer op de A76 Li voor Kunderberg richting Antwerpen volgen omleidingsroute E via de A79 Li en A2 Li [Volg route E]</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <!-- UUID URL must NOT be the only A76 hit source; excluded from search skip in live feeds via tag -->
+        <urlLink>
+          <urlLinkAddress>https://example.invalid/attachment/aaa76bbb-cccc-dddd-eeee-ffffffffffff</urlLinkAddress>
+        </urlLink>
+      </situationRecord>
+
+      <!-- Soft phrase must not become location -->
+      <situationRecord id="NDW03_529871_EVE"
+        xsi:type="PublicEvent">
+        <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>Gemeente Brunssum</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-24T10:00:00Z</overallStartTime>
+            <overallEndTime>2026-09-24T22:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Kermis,</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Weg dicht in beide richtingen</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+      </situationRecord>
+
+      <!-- MAN sibling with narrative (no roadOrJunctionNumber) -->
+      <situationRecord id="NDW03_84961_MAN"
+        xsi:type="MaintenanceWorks">
+        <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>Gemeente Heerlen</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-20T06:00:00Z</overallStartTime>
+            <overallEndTime>2026-10-30T16:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Herinrichting / onderhoud van, Weg,</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>S100 Beersdalweg Heerlen Herinrichting / onderhoud van Weg (84961)</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Weg dicht in beide richtingen</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+      </situationRecord>
+
+      <!-- DET sibling with real road tag — must remain a separate id after merge -->
+      <situationRecord id="NDW03_84961_DET_295928"
+        xsi:type="ReroutingManagement">
+        <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>Gemeente Heerlen</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-20T06:00:00Z</overallStartTime>
+            <overallEndTime>2026-10-30T16:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Omleiding 5 richting A76/A79</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <roadOrJunctionNumber>S100 Beersdalweg</roadOrJunctionNumber>
+      </situationRecord>
+
+      <!-- Long Beperking sentence stays in description; not a location title -->
+      <situationRecord id="NDW03_545222_EME_844294_AB"
+        xsi:type="RoadOrCarriagewayOrLaneManagement">
+        <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>Gemeente Landgraaf</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-18T17:00:00Z</overallStartTime>
+            <overallEndTime>2026-10-01T07:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Beperking 4: tussen 17:00 uur en 07:00 uur is de weg eenrichtingsverkeer vanuit Europaweg zuid naar de Maastrichterlaan.</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <roadOrCarriagewayOrLaneManagementType>useOfSpecifiedLanesOrCarriagewaysAllowed</roadOrCarriagewayOrLaneManagementType>
+      </situationRecord>
+
+      <!-- Bouw/Takel + street → street location; narrative kept -->
+      <situationRecord id="NDW03_BUILD_STREET_1"
+        xsi:type="MaintenanceWorks">
+        <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
+        <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
+        <probabilityOfOccurrence>certain</probabilityOfOccurrence>
+        <source>
+          <sourceName>
+            <values>
+              <value>Gemeente Kerkrade</value>
+            </values>
+          </sourceName>
+        </source>
+        <validity>
+          <validityStatus>definedByValidityTimeSpec</validityStatus>
+          <validityTimeSpecification>
+            <overallStartTime>2026-09-22T07:00:00Z</overallStartTime>
+            <overallEndTime>2026-09-25T16:00:00Z</overallEndTime>
+          </validityTimeSpecification>
+        </validity>
+        <roadOrJunctionNumber>Bouw/Takel, , Nullandstraat</roadOrJunctionNumber>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Bouw/Takel, , Nullandstraat</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Weg dicht in een richting</value>
+            </values>
+          </comment>
+        </generalPublicComment>
+      </situationRecord>
+    </situation>
+  </payloadPublication>
+</d2LogicalModel>

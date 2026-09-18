@@ -25,9 +25,9 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Short generic labels / noise prefixes. Softened: only drop when the *whole*
-# value is a short label (or contact/pdf/verkeersbesluit). Longer free-text
-# that happens to start with these words is kept for location/description.
+# Short generic labels. Softened: only drop when the *whole* value is a short
+# label (or contact/pdf/verkeersbesluit). Longer free-text that happens to start
+# with these words is kept for description (and never used as a street alone).
 _GENERIC_LABEL_RE = re.compile(
     r"^(beperking|omleiding|afsluiting|volg route|geen gevolgen|doorgang|"
     r"verkeersbelemmering|werkzaamheden|tijdens|let op|ja,? alleen)\b"
@@ -39,9 +39,25 @@ _MUNICIPALITY_RE = re.compile(
     re.IGNORECASE,
 )
 _CONTACT_RE = re.compile(r"^contact(informatie|persoon)\b", re.IGNORECASE)
+# Street / road tokens. Note: bare "weg" also matches soft phrases like
+# "Weg dicht…" — those are rejected separately in _looks_like_location.
 _ROADISH_RE = re.compile(
     r"\b(straat|laan|weg|plein|singel|dijk|kade|steeg|gracht|allee|"
     r"boulevard|baan|route|toerit|afrit|a[\s-]?\d{1,3}|n[\s-]?\d{1,3})\b",
+    re.IGNORECASE,
+)
+# Narrative / soft phrases that contain roadish tokens but are NOT streets.
+_SOFT_LOCATION_PHRASE_RE = re.compile(
+    r"(weg\s+dicht|dicht\s+in\s+(beide|een)\s+richting|volg(en)?\s+route|"
+    r"omleidingsroute|verkeer\s+(op|richting|via|vanuit|vanaf)|"
+    r"beperking\s+\d+\s*:|verminderd aantal|herinrichting|"
+    r"kabels?\s*/\s*leidingen|asfalteringswerkzaamheden|"
+    r"rioleringswerkzaamheden|flitspalen)",
+    re.IGNORECASE,
+)
+# Operator / source labels that are not useful as the sole description.
+_SOURCE_LABEL_RE = re.compile(
+    r"^zn-zo\b|^rws\b|district\s+zuid",
     re.IGNORECASE,
 )
 _MGMT_TYPE_LABELS = {
@@ -50,6 +66,13 @@ _MGMT_TYPE_LABELS = {
     "roadClosures": "Wegafsluiting",
     "intermittentCarriagewayClosures": "Periodieke rijbaanafsluiting",
 }
+# Raw camelCase management enums we never want as human description.
+_RAW_MGMT_ENUM_RE = re.compile(
+    r"^(carriagewayClosures|laneClosures|roadClosures|"
+    r"intermittentCarriagewayClosures|"
+    r"useOfSpecifiedLanesOrCarriagewaysAllowed|lanesDeviated)$",
+    re.IGNORECASE,
+)
 
 # DATEX tags that often hold a human street / junction / area name.
 _LOCATION_TAGS = frozenset(
@@ -67,6 +90,29 @@ _LOCATION_TAGS = frozenset(
         "descriptor",
     }
 )
+# Tags excluded from search haystack (UUID/URL false positives for A76 etc.).
+_SEARCH_SKIP_TAGS = frozenset(
+    {
+        "urlLinkAddress",
+        "urlLinkDescription",
+        "situationRecordCreationReference",
+        "situationRecordVersion",
+        "situationRecordCreationTime",
+        "situationRecordVersionTime",
+        "latitude",
+        "longitude",
+        "posList",
+        "bearing",
+        "specificLocation",
+        "alertCLocationCountryCode",
+        "alertCLocationTableNumber",
+        "alertCLocationTableVersion",
+        "offsetDistance",
+    }
+)
+
+# Soft upper bound for a location title (streets/road numbers, not sentences).
+_MAX_LOCATION_LEN = 80
 
 
 def _local_tag(tag: str) -> str:
@@ -84,6 +130,7 @@ _JUNK_LOCATION_RE = re.compile(
 
 
 def _is_noise_value(text: str) -> bool:
+    """True for contact/pdf and short soft labels (Beperking N / Omleiding N)."""
     tl = text.lower().strip()
     if not tl:
         return True
@@ -94,6 +141,33 @@ def _is_noise_value(text: str) -> bool:
     if _GENERIC_LABEL_RE.match(tl):
         return True
     return False
+
+
+def _is_category_only_value(text: str) -> bool:
+    """True when the value is only a short work-category label (no narrative)."""
+    cleaned = _normalize_location_candidate(text)
+    if not cleaned:
+        return True
+    if len(cleaned) > 40:
+        return False
+    if _part_is_category_junk(cleaned) and not _ROADISH_RE.search(cleaned):
+        return True
+    return False
+
+
+def _keep_in_description(text: str) -> bool:
+    """Prefer keeping public narrative; drop only true noise / category-only."""
+    if not (text or "").strip():
+        return False
+    if _MUNICIPALITY_RE.match(text):
+        return False
+    if _is_noise_value(text):
+        return False
+    if _is_category_only_value(text):
+        return False
+    if _RAW_MGMT_ENUM_RE.match(text.strip()):
+        return False
+    return True
 
 
 def _normalize_location_candidate(text: str) -> str:
@@ -159,14 +233,57 @@ def _is_junk_location(text: str) -> bool:
 
 
 def _looks_like_location(text: str) -> bool:
-    """Heuristic: street-like place; not municipality, noise, or work category."""
+    """Heuristic: short street/road title; not narrative, soft phrase, or junk."""
     cleaned = _polish_location(text) or _normalize_location_candidate(text)
     if _is_junk_location(cleaned):
         return False
+    if len(cleaned) > _MAX_LOCATION_LEN:
+        return False
+    if _SOFT_LOCATION_PHRASE_RE.search(cleaned):
+        return False
+    # Bare "Weg" / "Weg, Fase N" leftovers from "Herinrichting …, Weg, …"
+    if re.match(r"^weg(\s*,\s*fase\s*.*)?$", cleaned, re.IGNORECASE):
+        return False
+    # Sentences with many spaces are narratives, not street titles.
+    if cleaned.count(" ") >= 8:
+        return False
     if _ROADISH_RE.search(cleaned):
         return True
-    # Allow junction-style names without street suffix only from dedicated tags.
     return False
+
+
+def _pick_location(
+    location_from_tags: list[str], location_candidates: list[str]
+) -> str:
+    """Prefer dedicated road tags; else a short free-text street; never invent."""
+    tag_pool = [c for c in location_from_tags if not _is_junk_location(c)]
+    # Dedicated tags: prefer roadish, join a few distinct short ones.
+    if tag_pool:
+        roadish_tags = [c for c in tag_pool if _ROADISH_RE.search(c)]
+        pool = roadish_tags or tag_pool
+        # Keep short titles only from tags (tags can be "S100 Beersdalweg")
+        short = [c for c in pool if len(c) <= _MAX_LOCATION_LEN]
+        chosen = short or pool
+        # Join up to 3 distinct tag locations for multi-street records.
+        uniq: list[str] = []
+        for c in chosen:
+            if c not in uniq:
+                uniq.append(c)
+            if len(uniq) >= 3:
+                break
+        return " · ".join(uniq)
+
+    free_pool = [
+        c
+        for c in location_candidates
+        if c not in location_from_tags
+        and _looks_like_location(c)
+        and _ROADISH_RE.search(c)
+    ]
+    if free_pool:
+        # Prefer the shortest plausible street-like free-text value.
+        return min(free_pool, key=len)
+    return ""
 
 
 def _minute_key(iso_or_display: str) -> str:
@@ -226,15 +343,23 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                 pass
 
     def _extract_situation(self, elem, now: datetime) -> dict[str, Any] | None:
-        """Parse one situationRecord element into a filtered dict, or None."""
+        """Parse one situationRecord element into a filtered dict, or None.
+
+        Search matches a raw-ish human haystack (values + location tags + type +
+        municipality) *before* heavy description cleaning, excluding URL/UUID
+        tags that caused false A76 hits. Distinct record ids are kept; only
+        true content clones collapse later in _merge_and_format.
+        """
+        # Keep the full record id — collapsing to first two underscore parts
+        # dropped distinct MAN/DET/EVE/RSC siblings (major beta.4 regression).
         record_id = elem.attrib.get("id", "onbekend")
-        parts = record_id.split("_")
-        base_id = "_".join(parts[:2]) if len(parts) >= 2 else record_id
 
         start_time = "Onbekend"
         end_time = "Onbekend"
         value_texts: list[str] = []
         location_from_tags: list[str] = []
+        location_tags_raw: list[str] = []
+        search_bits: list[str] = []
         municipality = ""
         latitude: str | None = None
         longitude: str | None = None
@@ -245,6 +370,9 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             text_val = (child.text or "").strip()
             if not text_val:
                 continue
+
+            if tag_name not in _SEARCH_SKIP_TAGS:
+                search_bits.append(text_val)
 
             if tag_name == "overallStartTime":
                 start_time = text_val
@@ -257,6 +385,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             elif tag_name == "roadOrCarriagewayOrLaneManagementType":
                 management_type = text_val
             elif tag_name in _LOCATION_TAGS:
+                location_tags_raw.append(text_val)
                 cleaned = _polish_location(text_val)
                 if (
                     cleaned
@@ -286,6 +415,14 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             "Verkeershinder",
         )
         type_hinder = type_hinder.split(":")[-1]
+        search_bits.append(type_hinder)
+
+        # Match search terms against full raw-ish human haystack BEFORE cleaning.
+        raw_haystack = " ".join(search_bits).lower()
+        if self.search_terms and not any(
+            term in raw_haystack for term in self.search_terms
+        ):
+            return None
 
         # Split value texts into municipality / location candidates / narrative
         description_parts: list[str] = []
@@ -296,8 +433,6 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                 if not municipality:
                     municipality = text_val
                 continue
-            if _is_noise_value(text_val):
-                continue
             cleaned = _polish_location(text_val)
             if (
                 cleaned
@@ -306,34 +441,28 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                 and _ROADISH_RE.search(cleaned)
             ):
                 location_candidates.append(cleaned)
-            if text_val not in description_parts and not _is_noise_value(text_val):
+            if text_val not in description_parts and _keep_in_description(text_val):
                 description_parts.append(text_val)
 
-        # Prefer explicit roadOrJunctionNumber-style tags over free-text
-        location = ""
-        tag_pool = [c for c in location_from_tags if not _is_junk_location(c)]
-        free_pool = [
-            c
-            for c in location_candidates
-            if not _is_junk_location(c) and _ROADISH_RE.search(c)
-        ]
-        if tag_pool:
-            # Prefer roadish tag values when present
-            roadish_tags = [c for c in tag_pool if _ROADISH_RE.search(c)]
-            location = (roadish_tags or tag_pool)[0]
-        elif free_pool:
-            location = min(free_pool, key=len)
+        location = _pick_location(location_from_tags, location_candidates)
 
-        # If location equals a description part, keep narrative without duplicating
+        # Narrative: keep useful public comments; avoid duplicating location title
+        # when the description part is exactly the same short street string.
         narrative = [
             p
             for p in description_parts
             if p != location and not _MUNICIPALITY_RE.match(p)
         ]
+        # Drop source-only labels when we have richer narrative.
+        if any(not _SOURCE_LABEL_RE.match(p) for p in narrative):
+            narrative = [p for p in narrative if not _SOURCE_LABEL_RE.match(p)]
+
         if not narrative and management_type:
-            narrative.append(
-                _MGMT_TYPE_LABELS.get(management_type, management_type)
-            )
+            label = _MGMT_TYPE_LABELS.get(management_type, "")
+            if label:
+                narrative.append(label)
+            elif not _RAW_MGMT_ENUM_RE.match(management_type):
+                narrative.append(management_type)
 
         final_desc = (
             " - ".join(narrative)
@@ -341,15 +470,8 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             else (municipality or "Geen details beschikbaar")
         )
 
-        # Match search terms against all human fields (not only description)
-        haystack = " ".join(
-            filter(None, [final_desc, location, municipality, type_hinder])
-        ).lower()
-        if self.search_terms and not any(term in haystack for term in self.search_terms):
-            return None
-
         item: dict[str, Any] = {
-            "id": base_id,
+            "id": record_id,
             "type": type_hinder,
             "start": start_time,
             "end": end_time,
@@ -361,6 +483,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             item["latitude"] = latitude
             item["longitude"] = longitude
         return item
+
 
     async def _parse_feed_response(self, response) -> dict[str, dict[str, Any]]:
         """Stream-decompress and pull-parse a gzip XML response into situations."""
@@ -381,12 +504,12 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                 elem.clear()
                 if parsed is None:
                     continue
-                base_id = parsed["id"]
-                # Prefer richer records (longer location + description)
-                if base_id not in situations:
-                    situations[base_id] = parsed
+                sit_id = parsed["id"]
+                # Same full id only (true re-parse); prefer richer fields.
+                if sit_id not in situations:
+                    situations[sit_id] = parsed
                 else:
-                    prev = situations[base_id]
+                    prev = situations[sit_id]
                     prev_score = len(prev.get("location") or "") + len(
                         prev.get("description") or ""
                     )
@@ -394,7 +517,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                         parsed.get("description") or ""
                     )
                     if new_score > prev_score:
-                        situations[base_id] = parsed
+                        situations[sit_id] = parsed
 
         return situations
 
