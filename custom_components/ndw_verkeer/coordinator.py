@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import logging
 import os
+import re
 import zlib
 from datetime import datetime, timedelta
 from typing import Any
@@ -24,20 +25,89 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-_INVALID_DESC_STARTS = (
-    "beperking",
-    "omleiding",
-    "volg route",
-    "geen gevolgen",
-    "afsluiting",
-    "doorgang",
-    "contactpersoon",
-    "ja, alleen",
-    "let op",
-    "verkeersbelemmering",
-    "werkzaamheden",
-    "tijdens",
+# Short generic labels / noise prefixes. Softened: only drop when the *whole*
+# value is a short label (or contact/pdf/verkeersbesluit). Longer free-text
+# that happens to start with these words is kept for location/description.
+_GENERIC_LABEL_RE = re.compile(
+    r"^(beperking|omleiding|afsluiting|volg route|geen gevolgen|doorgang|"
+    r"verkeersbelemmering|werkzaamheden|tijdens|let op|ja,? alleen)\b"
+    r"(\s*\d+)?\s*$",
+    re.IGNORECASE,
 )
+_MUNICIPALITY_RE = re.compile(
+    r"^(gemeente|provincie)\s+.+$",
+    re.IGNORECASE,
+)
+_CONTACT_RE = re.compile(r"^contact(informatie|persoon)\b", re.IGNORECASE)
+_ROADISH_RE = re.compile(
+    r"\b(straat|laan|weg|plein|singel|dijk|kade|steeg|gracht|allee|"
+    r"boulevard|baan|route|toerit|afrit|a[\s-]?\d{1,3}|n[\s-]?\d{1,3})\b",
+    re.IGNORECASE,
+)
+_MGMT_TYPE_LABELS = {
+    "carriagewayClosures": "Rijbaanafsluiting",
+    "laneClosures": "Rijstrookafsluiting",
+    "roadClosures": "Wegafsluiting",
+    "intermittentCarriagewayClosures": "Periodieke rijbaanafsluiting",
+}
+
+# DATEX tags that often hold a human street / junction / area name.
+_LOCATION_TAGS = frozenset(
+    {
+        "roadOrJunctionNumber",
+        "roadName",
+        "roadNumber",
+        "locationDescriptor",
+        "locationName",
+        "junctionName",
+        "namedArea",
+        "areaName",
+        "alertCLocationName",
+        "tpegDescriptor",
+        "descriptor",
+    }
+)
+
+
+def _local_tag(tag: str) -> str:
+    return tag.split("}")[-1] if "}" in tag else tag
+
+
+def _is_noise_value(text: str) -> bool:
+    tl = text.lower().strip()
+    if not tl:
+        return True
+    if ".pdf" in tl or "verkeersbesluit" in tl:
+        return True
+    if _CONTACT_RE.match(tl):
+        return True
+    if _GENERIC_LABEL_RE.match(tl):
+        return True
+    return False
+
+
+def _looks_like_location(text: str) -> bool:
+    """Heuristic: street-like or free-text place that is not only municipality."""
+    if _MUNICIPALITY_RE.match(text.strip()):
+        return False
+    if _is_noise_value(text):
+        return False
+    if _ROADISH_RE.search(text):
+        return True
+    # Medium free-text that is not a tiny status word
+    return len(text.strip()) >= 8 and " " in text.strip()
+
+
+def _minute_key(iso_or_display: str) -> str:
+    """Normalize start/end to minute precision for dedupe."""
+    if not iso_or_display or iso_or_display == "Onbekend":
+        return iso_or_display or ""
+    try:
+        dt = datetime.fromisoformat(iso_or_display.replace("Z", "+00:00"))
+        return dt.strftime("%Y-%m-%dT%H:%M")
+    except Exception:
+        # Already formatted DD-MM-YYYY HH:MM or similar
+        return iso_or_display[:16]
 
 
 class NDWVerkeerCoordinator(DataUpdateCoordinator):
@@ -92,25 +162,41 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
 
         start_time = "Onbekend"
         end_time = "Onbekend"
-        description_parts: list[str] = []
+        value_texts: list[str] = []
+        location_from_tags: list[str] = []
+        municipality = ""
+        latitude: str | None = None
+        longitude: str | None = None
+        management_type = ""
 
         for child in elem.iter():
-            tag_name = child.tag.split("}")[-1] if "}" in child.tag else child.tag
-            if tag_name == "overallStartTime" and child.text:
-                start_time = child.text
-            elif tag_name == "overallEndTime" and child.text:
-                end_time = child.text
-            elif tag_name == "value" and child.text:
-                text_val = child.text.strip()
-                tl = text_val.lower()
-                if (
-                    len(text_val) > 4
-                    and not tl.startswith(_INVALID_DESC_STARTS)
-                    and ".pdf" not in tl
-                    and "verkeersbesluit" not in tl
-                ):
-                    if text_val not in description_parts:
-                        description_parts.append(text_val)
+            tag_name = _local_tag(child.tag)
+            text_val = (child.text or "").strip()
+            if not text_val:
+                continue
+
+            if tag_name == "overallStartTime":
+                start_time = text_val
+            elif tag_name == "overallEndTime":
+                end_time = text_val
+            elif tag_name == "latitude" and latitude is None:
+                latitude = text_val
+            elif tag_name == "longitude" and longitude is None:
+                longitude = text_val
+            elif tag_name == "roadOrCarriagewayOrLaneManagementType":
+                management_type = text_val
+            elif tag_name in _LOCATION_TAGS:
+                if text_val not in location_from_tags and not _is_noise_value(text_val):
+                    # Skip pure enums stuffed into descriptor-like tags
+                    if text_val.lower() not in {
+                        "maincarriageway",
+                        "inboundcarriageway",
+                        "outboundcarriageway",
+                    }:
+                        location_from_tags.append(text_val)
+            elif tag_name == "value":
+                if text_val not in value_texts:
+                    value_texts.append(text_val)
 
         if end_time != "Onbekend":
             try:
@@ -124,22 +210,72 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             "Verkeershinder",
         )
         type_hinder = type_hinder.split(":")[-1]
+
+        # Split value texts into municipality / location candidates / narrative
+        description_parts: list[str] = []
+        location_candidates: list[str] = list(location_from_tags)
+
+        for text_val in value_texts:
+            if _MUNICIPALITY_RE.match(text_val):
+                if not municipality:
+                    municipality = text_val
+                continue
+            if _is_noise_value(text_val):
+                continue
+            if _looks_like_location(text_val) and text_val not in location_candidates:
+                # Prefer dedicated tag locations; still keep strong street-like values
+                if _ROADISH_RE.search(text_val) or len(location_from_tags) == 0:
+                    location_candidates.append(text_val)
+            if text_val not in description_parts:
+                description_parts.append(text_val)
+
+        # Prefer explicit roadOrJunctionNumber-style tags over long free-text
+        location = ""
+        if location_from_tags:
+            location = location_from_tags[0]
+        elif location_candidates:
+            # Prefer shorter street-like over long narrative blobs
+            roadish = [c for c in location_candidates if _ROADISH_RE.search(c)]
+            pool = roadish or location_candidates
+            location = min(pool, key=len)
+
+        # If location equals a description part, keep narrative without duplicating
+        narrative = [
+            p
+            for p in description_parts
+            if p != location and not _MUNICIPALITY_RE.match(p)
+        ]
+        if not narrative and management_type:
+            narrative.append(
+                _MGMT_TYPE_LABELS.get(management_type, management_type)
+            )
+
         final_desc = (
-            " - ".join(description_parts)
-            if description_parts
-            else "Geen details beschikbaar"
+            " - ".join(narrative)
+            if narrative
+            else (municipality or "Geen details beschikbaar")
         )
 
-        if not any(term in final_desc.lower() for term in self.search_terms):
+        # Match search terms against all human fields (not only description)
+        haystack = " ".join(
+            filter(None, [final_desc, location, municipality, type_hinder])
+        ).lower()
+        if self.search_terms and not any(term in haystack for term in self.search_terms):
             return None
 
-        return {
+        item: dict[str, Any] = {
             "id": base_id,
             "type": type_hinder,
             "start": start_time,
             "end": end_time,
             "description": final_desc,
+            "location": location,
+            "municipality": municipality,
         }
+        if latitude is not None and longitude is not None:
+            item["latitude"] = latitude
+            item["longitude"] = longitude
+        return item
 
     async def _parse_feed_response(self, response) -> dict[str, dict[str, Any]]:
         """Stream-decompress and pull-parse a gzip XML response into situations."""
@@ -161,22 +297,49 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
                 if parsed is None:
                     continue
                 base_id = parsed["id"]
-                if base_id not in situations or len(parsed["description"]) > len(
-                    situations[base_id]["description"]
-                ):
+                # Prefer richer records (longer location + description)
+                if base_id not in situations:
                     situations[base_id] = parsed
+                else:
+                    prev = situations[base_id]
+                    prev_score = len(prev.get("location") or "") + len(
+                        prev.get("description") or ""
+                    )
+                    new_score = len(parsed.get("location") or "") + len(
+                        parsed.get("description") or ""
+                    )
+                    if new_score > prev_score:
+                        situations[base_id] = parsed
 
         return situations
 
     def _merge_and_format(
         self, all_situations: dict[str, dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        """Deduplicate by description+start and format timestamps for display."""
+        """Deduplicate by location+description+time and format timestamps."""
         unique_desc_situations: dict[str, dict[str, Any]] = {}
         for sit in all_situations.values():
-            unique_key = f"{sit['description']}_{sit['start']}"
-            if unique_key not in unique_desc_situations:
+            loc = (sit.get("location") or "").strip().lower()
+            desc = (sit.get("description") or "").strip().lower()
+            muni = (sit.get("municipality") or "").strip().lower()
+            start_m = _minute_key(sit.get("start", ""))
+            end_m = _minute_key(sit.get("end", ""))
+            # Distinct streets with same municipality/dates stay separate via loc.
+            # Gemeente-only clones with same minute window collapse together.
+            unique_key = f"{loc}|{desc}|{muni}|{start_m}|{end_m}|{sit.get('type', '')}"
+            existing = unique_desc_situations.get(unique_key)
+            if existing is None:
                 unique_desc_situations[unique_key] = sit
+            else:
+                # Keep the richer of two true duplicates
+                prev_score = len(existing.get("location") or "") + len(
+                    existing.get("description") or ""
+                )
+                new_score = len(sit.get("location") or "") + len(
+                    sit.get("description") or ""
+                )
+                if new_score > prev_score:
+                    unique_desc_situations[unique_key] = sit
 
         final_list = list(unique_desc_situations.values())
         final_list.sort(key=lambda x: x.get("start", ""))

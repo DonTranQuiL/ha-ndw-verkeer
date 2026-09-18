@@ -85,9 +85,21 @@ Card config (use the master NDW Verkeer entity, not a diagnostic):
 type: custom:ndw_verkeer-card
 entity: sensor.ndw_verkeer_<your_instance>
 title: NDW Verkeer
+# Optional:
+# sort: start_asc          # start_asc | start_desc | end_asc | end_desc
+# default_date: "2026-09-20"  # YYYY-MM-DD pre-select; leave empty for all dates
+# date_mode: active        # active = start<=day<=end; starting = starts that day
 ```
 
+The card shows **location** as the title line (street/road when NDW provides it), then dates, then description. Use the date picker to filter items active on a day (or starting that day), type chips, and the sort control. Date-filter logic lives in the card JS (`_matchesDate`).
+
 Prefer recorder exclude on that master sensor: attributes `items` / `history` can be large.
+
+### Beta 1.0.5-beta.3 notes
+* Extracts `location` / `municipality` from DATEX tags (`roadOrJunctionNumber`, road-like `value` texts, etc.) instead of leaving only "Gemeente X".
+* Softer description filters (still skips `.pdf` / verkeersbesluit / contact lines).
+* Smarter dedupe: distinct streets with the same municipality/dates are kept; gemeente-only clones in the same minute window collapse.
+* Lovelace card: location title, friendlier type labels/icons, sort + date filter.
 
 ***
 ## 🚀 Key Features
@@ -132,9 +144,13 @@ Prefer recorder exclude on that master sensor: attributes `items` / `history` ca
 | :--- | :--- |
 | `start` | The exact start date and time of the incident/roadwork (DD-MM-YYYY HH:MM). |
 | `end` | The exact end date and time of the incident/roadwork (DD-MM-YYYY HH:MM). |
-| `description` | A clean, readable summary of the traffic situation, stripped of system codes. |
+| `description` | Narrative summary (impact / works text). Not invented street names. |
+| `location` | Street/road/junction when NDW provides it (`roadOrJunctionNumber` or road-like values). |
+| `municipality` | `Gemeente …` / `Provincie …` when present in the feed. |
 | `id` | The unique project identifier from the NDW feed. |
-| `history` | A chronological list of all other upcoming events, complete with their own dates, types, and descriptions. |
+| `items` | Full list of matches (preferred for the Lovelace card). |
+| `history` | Legacy: remaining matches after the latest (`items[1:]`). |
+| `count` | Number of matches. |
 
 ## 🛠 Services
 
@@ -164,14 +180,16 @@ cards:
         {% if states(entity) not in ['unknown', 'unavailable', 'Geen meldingen'] %}
         {% set type = states(entity) %}
         {% set icon = '🚧' if type in ['MaintenanceWorks', 'ConstructionWorks'] else '🔄' if type == 'ReroutingManagement' else '⛔' if type == 'RoadOrCarriagewayOrLaneManagement' else '🚴' if type == 'PublicEvent' else '⚠️' %}
-        {{ icon }} **{{ state_attr(entity, 'start') }} t/m {{ state_attr(entity, 'end') }}** *{{ state_attr(entity, 'description') | truncate(200, true, '...') }}*
+        {{ icon }} **{{ state_attr(entity, 'location') or state_attr(entity, 'municipality') or 'Locatie' }}** — {{ state_attr(entity, 'start') }} t/m {{ state_attr(entity, 'end') }}
+        *{{ state_attr(entity, 'description') | truncate(200, true, '...') }}*
         
         ---
         
-        {% if state_attr(entity, 'history') %}
-        {% for item in state_attr(entity, 'history') %}
+        {% if state_attr(entity, 'items') %}
+        {% for item in state_attr(entity, 'items')[1:] %}
         {% set h_icon = '🚧' if item.type in ['MaintenanceWorks', 'ConstructionWorks'] else '🔄' if item.type == 'ReroutingManagement' else '⛔' if item.type == 'RoadOrCarriagewayOrLaneManagement' else '🚴' if item.type == 'PublicEvent' else '⚠️' %}
-        {{ h_icon }} **{{ item.start }} t/m {{ item.end }}** *{{ item.description | truncate(200, true, '...') }}*
+        {{ h_icon }} **{{ item.location or item.municipality or 'Locatie' }}** — {{ item.start }} t/m {{ item.end }}
+        *{{ item.description | truncate(200, true, '...') }}*
         
         ---
         {% endfor %}

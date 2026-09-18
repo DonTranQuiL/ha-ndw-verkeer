@@ -60,6 +60,8 @@ class NDWSensor(CoordinatorEntity, SensorEntity):
             "start": latest.get("start", "Onbekend"),
             "end": latest.get("end", "Onbekend"),
             "description": latest.get("description", ""),
+            "location": latest.get("location", ""),
+            "municipality": latest.get("municipality", ""),
             "count": len(items),
             # Full list for the Lovelace card. Prefer recorder exclude on this entity.
             "items": items,

@@ -18,6 +18,8 @@ def mock_coordinator():
             "end": "Onbekend",
             "description": "File door ongeval",
             "type": "Ongeval",
+            "location": "A2",
+            "municipality": "Gemeente Utrecht",
         }
     ]
     coordinator.last_update_success_timestamp = "2026-05-19T11:49:00Z"
@@ -51,7 +53,10 @@ def test_ndw_sensor_with_data(mock_coordinator, mock_entry):
     attrs = sensor.extra_state_attributes
     assert attrs["id"] == "12345"
     assert attrs["description"] == "File door ongeval"
+    assert attrs["location"] == "A2"
+    assert attrs["municipality"] == "Gemeente Utrecht"
     assert attrs["start"] == "2026-05-19T10:00:00Z"
+    assert attrs["items"][0]["location"] == "A2"
     assert attrs["history"] == []
 
 
