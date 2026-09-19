@@ -102,6 +102,10 @@ Prefer recorder exclude on that master sensor: attributes `items` / `history` ca
 * Descriptions keep useful public comments; short soft labels (`Beperking N`, `Omleiding N`) alone stay out; category-only junk is dropped without wiping the only narrative.
 * Lovelace card: thin titles still show the full description body; list UI soft-cap of **80** rows documented (sensor `items` remains complete).
 
+### Stable 1.0.5
+* Promotes the tested beta.5 line (full situation ids, DATEX location/description split, Lovelace card with filters).
+* Includes maintainer polish on the coordinator and card after soak testing.
+
 ### Beta 1.0.5-beta.4 notes
 * Drops work-category junk from `location` (e.g. `Bouw/Takel, ,`).
 * Card title falls back to description when no street is available.

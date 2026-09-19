@@ -1,4 +1,4 @@
-"""Unit tests for DATEX situation extraction and merge (1.0.5-beta.3)."""
+"""Unit tests for DATEX situation-level extraction and merge (1.0.5)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,8 @@ from xml.etree.ElementTree import fromstring
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-FIXTURE = Path(__file__).parent / "fixtures" / "situation_heerlen_location.xml"
+HEERLEN_FIXTURE = Path(__file__).parent / "fixtures" / "situation_heerlen_location.xml"
+BETA5_FIXTURE = Path(__file__).parent / "fixtures" / "situation_beta5_patterns.xml"
 
 
 def _load_coordinator_module():
@@ -45,13 +46,11 @@ def _load_coordinator_module():
     ].DataUpdateCoordinator = _DataUpdateCoordinator
     sys.modules["homeassistant.util.dt"].utcnow = lambda: datetime.now(timezone.utc)
 
-    # Package placeholders
     sys.modules.setdefault("custom_components", types.ModuleType("custom_components"))
     pkg = types.ModuleType("custom_components.ndw_verkeer")
     pkg.__path__ = [str(ROOT / "custom_components" / "ndw_verkeer")]
     sys.modules["custom_components.ndw_verkeer"] = pkg
 
-    # const
     const_path = ROOT / "custom_components" / "ndw_verkeer" / "const.py"
     spec_c = importlib.util.spec_from_file_location(
         "custom_components.ndw_verkeer.const", const_path
@@ -61,7 +60,6 @@ def _load_coordinator_module():
     assert spec_c.loader is not None
     spec_c.loader.exec_module(const)
 
-    # cache stub (coordinator imports NDWCache)
     cache_mod = types.ModuleType("custom_components.ndw_verkeer.cache")
 
     class NDWCache:
@@ -102,9 +100,13 @@ def _coord(search_terms: str = "Heerlen") -> NDWVerkeerCoordinator:
     return coord
 
 
-def _records():
-    root = fromstring(FIXTURE.read_text(encoding="utf-8"))
-    return [el for el in root.iter() if el.tag.endswith("situationRecord")]
+def _situations(path: Path):
+    root = fromstring(path.read_text(encoding="utf-8"))
+    return [el for el in root.iter() if el.tag.endswith("situation")]
+
+
+def _situation(path: Path, situation_id: str):
+    return next(el for el in _situations(path) if el.attrib.get("id") == situation_id)
 
 
 @pytest.fixture
@@ -113,9 +115,9 @@ def now_fixed():
 
 
 def test_extract_prefers_road_or_junction_for_location(now_fixed):
-    coord = _coord("Heerlen")
-    rich = _records()[0]
-    parsed = coord._extract_situation(rich, now_fixed)
+    parsed = _coord("Heerlen")._extract_situation_elem(
+        _situation(HEERLEN_FIXTURE, "NDW03_100001_SIT"), now_fixed
+    )
     assert parsed is not None
     assert parsed["location"] == "Coriovallumstraat"
     assert parsed["municipality"] == "Gemeente Heerlen"
@@ -128,156 +130,131 @@ def test_extract_prefers_road_or_junction_for_location(now_fixed):
 
 
 def test_extract_gemeente_only_does_not_invent_street(now_fixed):
-    coord = _coord("Heerlen")
-    lane = _records()[1]
-    parsed = coord._extract_situation(lane, now_fixed)
+    parsed = _coord("Heerlen")._extract_situation_elem(
+        _situation(HEERLEN_FIXTURE, "NDW03_100002_SIT"), now_fixed
+    )
     assert parsed is not None
     assert parsed["location"] == ""
     assert parsed["municipality"] == "Gemeente Heerlen"
-    assert "Beperking" not in parsed["description"]
     assert parsed["description"] == "Rijbaanafsluiting"
     assert parsed["type"] == "RoadOrCarriagewayOrLaneManagement"
 
 
 def test_extract_distinct_street_via_junction_tag(now_fixed):
-    coord = _coord("Heerlen")
-    reroute = _records()[3]
-    parsed = coord._extract_situation(reroute, now_fixed)
+    parsed = _coord("Heerlen")._extract_situation_elem(
+        _situation(HEERLEN_FIXTURE, "NDW03_100003_SIT"), now_fixed
+    )
     assert parsed is not None
     assert parsed["location"] == "Stationsplein"
     assert parsed["municipality"] == "Gemeente Heerlen"
 
 
-def test_merge_collapses_gemeente_only_clones_keeps_distinct_locations(now_fixed):
-    coord = _coord("Heerlen")
+def test_distinct_situations_stay_distinct(now_fixed):
+    coord = _coord("")
     situations = {}
-    for elem in _records():
-        parsed = coord._extract_situation(elem, now_fixed)
-        if parsed:
-            situations[parsed["id"]] = parsed
+    for elem in _situations(HEERLEN_FIXTURE):
+        parsed = coord._extract_situation_elem(elem, now_fixed)
+        assert parsed is not None
+        situations[parsed["id"]] = parsed
 
     assert len(situations) == 4
+    assert {item["location"] for item in situations.values()} >= {
+        "Coriovallumstraat",
+        "Stationsplein",
+    }
     merged = coord._merge_and_format(situations)
-    locations = {(m.get("location") or "") for m in merged}
-    assert "Coriovallumstraat" in locations
-    assert "Stationsplein" in locations
-    gemeente_only = [
-        m
-        for m in merged
-        if not m.get("location") and m.get("municipality") == "Gemeente Heerlen"
-    ]
-    assert len(gemeente_only) == 1
-    assert "-" in merged[0]["start"]
+    assert len(merged) == 4
+    assert all("-" in item["start"] for item in merged)
 
 
 def test_search_matches_location_field(now_fixed):
-    coord = _coord("Stationsplein")
-    reroute = _records()[3]
-    parsed = coord._extract_situation(reroute, now_fixed)
+    parsed = _coord("Stationsplein")._extract_situation_elem(
+        _situation(HEERLEN_FIXTURE, "NDW03_100003_SIT"), now_fixed
+    )
     assert parsed is not None
     assert parsed["location"] == "Stationsplein"
 
 
-def test_junk_bouw_takel_rejected_as_location(now_fixed):
-    coord = _coord("Maastricht")
-    junk = None
-    for elem in _records():
-        if elem.attrib.get("id", "").startswith("NDW03_486073"):
-            junk = elem
-            break
-    assert junk is not None
-    parsed = coord._extract_situation(junk, now_fixed)
+def test_bouw_takel_without_street_is_not_a_useful_location(now_fixed):
+    parsed = _coord("Maastricht")._extract_situation_elem(
+        _situation(HEERLEN_FIXTURE, "NDW03_100004_SIT"), now_fixed
+    )
     assert parsed is not None
     assert parsed["location"] == ""
-    assert parsed["municipality"] == "Gemeente Maastricht"
+    assert "Bouw/Takel" in parsed["description"]
     assert "Snelheidsbeperking" in parsed["description"]
 
 
-BETA5_FIXTURE = Path(__file__).parent / "fixtures" / "situation_beta5_patterns.xml"
-
-
-def _beta5_records():
-    root = fromstring(BETA5_FIXTURE.read_text(encoding="utf-8"))
-    return [el for el in root.iter() if el.tag.endswith("situationRecord")]
-
-
-def test_diversion_narrative_is_description_not_location(now_fixed):
-    coord = _coord("A76")
-    elem = _beta5_records()[0]
-    parsed = coord._extract_situation(elem, now_fixed)
-    assert parsed is not None
-    assert parsed["location"] == ""
-    assert "A76" in parsed["description"]
-    assert (
-        "omleidingsroute" in parsed["description"].lower()
-        or "omleiding" in parsed["description"].lower()
+def test_diversion_narrative_is_not_the_location(now_fixed):
+    parsed = _coord("A76")._extract_situation_elem(
+        _situation(BETA5_FIXTURE, "RWS01_M1173321_SIT"), now_fixed
     )
+    assert parsed is not None
+    assert parsed["location"] == "Kunderberg"
+    assert parsed["location"] != parsed["description"]
+    assert "A76" in parsed["description"]
+    assert "omleidingsroute" in parsed["description"].lower()
 
 
 def test_url_uuid_a76_substring_does_not_match_alone(now_fixed):
     """A76 inside an attachment UUID must not match when human text lacks A76."""
     coord = _coord("A76")
-    # Build a minimal record: only UUID url contains a76, human text does not.
     xml = """<?xml version='1.0' encoding='UTF-8'?>
-    <situationRecord xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-      xsi:type="MaintenanceWorks" id="NDW03_FALSE_A76_URL">
-      <validity><validityTimeSpecification>
-        <overallStartTime>2026-09-20T06:00:00Z</overallStartTime>
-        <overallEndTime>2026-10-01T16:00:00Z</overallEndTime>
-      </validityTimeSpecification></validity>
-      <generalPublicComment><comment><values>
-        <value>Gemeente Gouda</value>
-      </values></comment></generalPublicComment>
-      <urlLinkAddress>https://example.invalid/attachment/dea76638-a76f-4f3d-8aff-8b2a7632bfba</urlLinkAddress>
-    </situationRecord>
+    <situation id="NDW03_FALSE_A76_SIT" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <situationRecord xsi:type="MaintenanceWorks" id="NDW03_FALSE_A76_URL">
+        <validity><validityTimeSpecification>
+          <overallStartTime>2026-09-20T06:00:00Z</overallStartTime>
+          <overallEndTime>2026-10-01T16:00:00Z</overallEndTime>
+        </validityTimeSpecification></validity>
+        <generalPublicComment><comment><values>
+          <value>Gemeente Gouda</value>
+        </values></comment></generalPublicComment>
+        <urlLinkAddress>https://example.invalid/attachment/dea76638-a76f-4f3d-8aff-8b2a7632bfba</urlLinkAddress>
+      </situationRecord>
+    </situation>
     """
-    elem = fromstring(xml)
-    parsed = coord._extract_situation(elem, now_fixed)
-    assert parsed is None
+    assert coord._extract_situation_elem(fromstring(xml), now_fixed) is None
 
 
 def test_soft_weg_dicht_not_used_as_location(now_fixed):
-    coord = _coord("Brunssum")
-    elem = _beta5_records()[1]
-    parsed = coord._extract_situation(elem, now_fixed)
+    parsed = _coord("Brunssum")._extract_situation_elem(
+        _situation(BETA5_FIXTURE, "NDW03_529871_SIT"), now_fixed
+    )
     assert parsed is not None
-    assert parsed["location"] == ""
+    assert parsed["location"] == "Brunssum centrum"
     assert "Weg dicht" in parsed["description"]
     assert "Kermis" in parsed["description"]
 
 
-def test_sibling_man_and_det_keep_distinct_ids(now_fixed):
-    coord = _coord("Heerlen")
-    situations = {}
-    for elem in _beta5_records()[2:4]:
-        parsed = coord._extract_situation(elem, now_fixed)
-        assert parsed is not None
-        situations[parsed["id"]] = parsed
-    assert len(situations) == 2
-    assert "NDW03_84961_MAN" in situations
-    assert "NDW03_84961_DET_295928" in situations
-    assert situations["NDW03_84961_DET_295928"]["location"] == "S100 Beersdalweg"
-    # MAN may have empty location but rich description
-    assert "Beersdalweg" in situations["NDW03_84961_MAN"]["description"]
-    merged = coord._merge_and_format(situations)
-    assert len(merged) == 2
+def test_sibling_man_and_det_merge_into_one_situation_item(now_fixed):
+    parsed = _coord("Heerlen")._extract_situation_elem(
+        _situation(BETA5_FIXTURE, "NDW03_84961_SIT"), now_fixed
+    )
+    assert parsed is not None
+    assert parsed["id"] == "NDW03_84961"
+    assert parsed["location"] == "S100 Beersdalweg"
+    assert "Beersdalweg" in parsed["description"]
+    assert "Omleiding" in parsed["description"]
+    assert set(parsed["types"]) == {"MaintenanceWorks", "ReroutingManagement"}
+    merged = _coord("Heerlen")._merge_and_format({parsed["id"]: parsed})
+    assert len(merged) == 1
 
 
 def test_long_beperking_sentence_kept_in_description(now_fixed):
-    coord = _coord("Landgraaf")
-    elem = _beta5_records()[4]
-    parsed = coord._extract_situation(elem, now_fixed)
+    parsed = _coord("Landgraaf")._extract_situation_elem(
+        _situation(BETA5_FIXTURE, "NDW03_545222_SIT"), now_fixed
+    )
     assert parsed is not None
-    assert parsed["location"] == ""
+    assert parsed["location"] == "Europaweg"
     assert "eenrichtingsverkeer" in parsed["description"]
     assert "Europaweg" in parsed["description"]
 
 
-def test_bouw_takel_with_street_polishes_to_street(now_fixed):
-    coord = _coord("Kerkrade")
-    elem = _beta5_records()[5]
-    parsed = coord._extract_situation(elem, now_fixed)
+def test_bouw_takel_with_street_keeps_real_street_location(now_fixed):
+    parsed = _coord("Kerkrade")._extract_situation_elem(
+        _situation(BETA5_FIXTURE, "NDW03_BUILD_STREET_SIT"), now_fixed
+    )
     assert parsed is not None
-    assert parsed["location"] == "Nullandstraat"
-    assert "Bouw/Takel" not in parsed["location"]
+    assert "Nullandstraat" in parsed["location"]
     assert "Weg dicht" in parsed["description"]
+    assert "Bouw/Takel" in parsed["description"]

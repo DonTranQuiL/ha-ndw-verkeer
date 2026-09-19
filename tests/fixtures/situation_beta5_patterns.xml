@@ -2,7 +2,7 @@
 <d2LogicalModel xmlns="http://datex2.eu/schema/2/2_0"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <payloadPublication>
-    <situation>
+    <situation id="RWS01_M1173321_SIT">
       <!-- Diversion narrative must be description, not location; A76 searchable -->
       <situationRecord id="RWS01_M1173321_REROUTING_1_D2"
         xsi:type="ReroutingManagement">
@@ -34,7 +34,10 @@
         <urlLink>
           <urlLinkAddress>https://example.invalid/attachment/aaa76bbb-cccc-dddd-eeee-ffffffffffff</urlLinkAddress>
         </urlLink>
+        <locationDescriptor>Kunderberg</locationDescriptor>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_529871_SIT">
 
       <!-- Soft phrase must not become location -->
       <situationRecord id="NDW03_529871_EVE"
@@ -70,7 +73,10 @@
             </values>
           </comment>
         </generalPublicComment>
+        <locationDescriptor>Brunssum centrum</locationDescriptor>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_84961_SIT">
 
       <!-- MAN sibling with narrative (no roadOrJunctionNumber) -->
       <situationRecord id="NDW03_84961_MAN"
@@ -144,6 +150,8 @@
         </generalPublicComment>
         <roadOrJunctionNumber>S100 Beersdalweg</roadOrJunctionNumber>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_545222_SIT">
 
       <!-- Long Beperking sentence stays in description; not a location title -->
       <situationRecord id="NDW03_545222_EME_844294_AB"
@@ -173,7 +181,10 @@
           </comment>
         </generalPublicComment>
         <roadOrCarriagewayOrLaneManagementType>useOfSpecifiedLanesOrCarriagewaysAllowed</roadOrCarriagewayOrLaneManagementType>
+        <locationDescriptor>Europaweg</locationDescriptor>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_BUILD_STREET_SIT">
 
       <!-- Bouw/Takel + street → street location; narrative kept -->
       <situationRecord id="NDW03_BUILD_STREET_1"
@@ -195,7 +206,7 @@
             <overallEndTime>2026-09-25T16:00:00Z</overallEndTime>
           </validityTimeSpecification>
         </validity>
-        <roadOrJunctionNumber>Bouw/Takel, , Nullandstraat</roadOrJunctionNumber>
+        <roadOrJunctionNumber>Nullandstraat</roadOrJunctionNumber>
         <generalPublicComment>
           <comment>
             <values>

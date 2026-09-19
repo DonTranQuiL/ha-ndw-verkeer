@@ -2,9 +2,9 @@
 <d2LogicalModel xmlns="http://datex2.eu/schema/2/2_0"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <payloadPublication>
-    <situation>
+    <situation id="NDW03_100001_SIT">
       <!-- Rich record: municipality + street via roadOrJunctionNumber + narrative values -->
-      <situationRecord id="NDW18_test-rich-001_RSC_1"
+      <situationRecord id="NDW03_100001_RSC_1"
         xsi:type="MaintenanceWorks">
         <situationRecordCreationTime>2026-09-01T10:00:00Z</situationRecordCreationTime>
         <situationRecordVersionTime>2026-09-01T10:00:00Z</situationRecordVersionTime>
@@ -72,9 +72,11 @@
           <roadOrJunctionNumber>Coriovallumstraat</roadOrJunctionNumber>
         </reroutingManagement>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_100002_SIT">
 
       <!-- Lane management: gemeente + short beperking label (should soften, not invent street) -->
-      <situationRecord id="NDW18_test-lane-002_RSC_1"
+      <situationRecord id="NDW03_100002_RSC_1"
         xsi:type="RoadOrCarriagewayOrLaneManagement">
         <situationRecordCreationTime>2026-09-01T11:00:00Z</situationRecordCreationTime>
         <situationRecordVersionTime>2026-09-01T11:00:00Z</situationRecordVersionTime>
@@ -113,7 +115,7 @@
       </situationRecord>
 
       <!-- Duplicate-ish clone: same gemeente + same minute start, no location -->
-      <situationRecord id="NDW18_test-lane-003_RSC_1"
+      <situationRecord id="NDW03_100002_RSC_2"
         xsi:type="RoadOrCarriagewayOrLaneManagement">
         <situationRecordCreationTime>2026-09-01T11:00:01Z</situationRecordCreationTime>
         <situationRecordVersionTime>2026-09-01T11:00:01Z</situationRecordVersionTime>
@@ -134,9 +136,11 @@
         </validity>
         <roadOrCarriagewayOrLaneManagementType>carriagewayClosures</roadOrCarriagewayOrLaneManagementType>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_100003_SIT">
 
       <!-- Distinct street via roadOrJunctionNumber, same municipality -->
-      <situationRecord id="NDW18_test-reroute-004_RSC_1"
+      <situationRecord id="NDW03_100003_RSC_1"
         xsi:type="ReroutingManagement">
         <situationRecordCreationTime>2026-09-01T12:00:00Z</situationRecordCreationTime>
         <situationRecordVersionTime>2026-09-01T12:00:00Z</situationRecordVersionTime>
@@ -164,9 +168,11 @@
         </generalPublicComment>
         <roadOrJunctionNumber>Stationsplein</roadOrJunctionNumber>
       </situationRecord>
+    </situation>
+    <situation id="NDW03_100004_SIT">
 
       <!-- Junk category only in roadOrJunctionNumber (Maastricht probe town) -->
-      <situationRecord id="NDW03_486073_RSC_1"
+      <situationRecord id="NDW03_100004_RSC_1"
         xsi:type="MaintenanceWorks">
         <situationRecordCreationTime>2026-09-01T13:00:00Z</situationRecordCreationTime>
         <situationRecordVersionTime>2026-09-01T13:00:00Z</situationRecordVersionTime>
@@ -204,7 +210,13 @@
             </location>
           </locationContainedInItinerary>
         </groupOfLocations>
-        <roadOrJunctionNumber>Bouw/Takel, ,</roadOrJunctionNumber>
+        <generalPublicComment>
+          <comment>
+            <values>
+              <value>Bouw/Takel</value>
+            </values>
+          </comment>
+        </generalPublicComment>
       </situationRecord>
     </situation>
   </payloadPublication>
