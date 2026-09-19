@@ -1,6 +1,5 @@
 /**
- * NDW Verkeer Lovelace card (1.0.5-beta.5).
- * List render cap: first 80 filtered items (sensor attributes.items is uncapped).
+ * NDW Verkeer Lovelace card (1.0.5-beta.3).
  * Custom element: ndw_verkeer-card
  * Point entity at the master NDW Verkeer sensor (attributes.items).
  *
@@ -18,6 +17,8 @@ class NdwVerkeerCard extends HTMLElement {
     this._sort = "start_asc";
     this._date = "";
     this._dateMode = "active";
+    this._datePreset = "all";
+    this._search = "";
     this._fingerprint = "";
     this._onClick = this._onClick.bind(this);
     this._onChange = this._onChange.bind(this);
@@ -56,6 +57,8 @@ class NdwVerkeerCard extends HTMLElement {
       sort: this._sort,
       date: this._date,
       mode: this._dateMode,
+      preset: this._datePreset,
+      q: this._search,
       e: [...this._expanded],
       d: dark,
       i: attrs.items || attrs.history || [],
@@ -153,32 +156,44 @@ class NdwVerkeerCard extends HTMLElement {
     const raw = String(type || "Verkeershinder");
     const key = raw.toLowerCase();
     if (key.includes("maintenance") || key.includes("construction")) {
-      return { label: "Maintenance", icon: "🚧", filterKey: "maintenance" };
+      return { label: "Werkzaamheden", icon: "🚧", filterKey: "werkzaamheden" };
     }
     if (key.includes("rerout")) {
-      return { label: "Reroute", icon: "🔄", filterKey: "reroute" };
+      return { label: "Omleiding", icon: "🔄", filterKey: "omleiding" };
     }
-    if (key.includes("roadorcarriageway") || key.includes("lane")) {
-      return { label: "Lane management", icon: "⛔", filterKey: "road" };
+    if (
+      key.includes("roadorcarriageway") ||
+      key.includes("lane") ||
+      key.includes("closure") ||
+      key.includes("afsluit")
+    ) {
+      return { label: "Afsluiting", icon: "⛔", filterKey: "afsluiting" };
     }
     if (key.includes("publicevent") || key.includes("event")) {
-      return { label: "Event", icon: "🚴", filterKey: "event" };
-    }
-    if (key.includes("accident") || key.includes("ongeval")) {
-      return { label: "Accident", icon: "💥", filterKey: "accident" };
-    }
-    if (key.includes("closure") || key.includes("afsluit")) {
-      return { label: "Closure", icon: "🚫", filterKey: "closure" };
+      return { label: "Evenement", icon: "🎉", filterKey: "evenement" };
     }
     if (key.includes("speed")) {
-      return { label: "Speed limit", icon: "🐢", filterKey: "speed" };
+      return { label: "Snelheid", icon: "🐢", filterKey: "overig" };
     }
-    // CamelCase → spaced fallback
-    return {
-      label: raw.replace(/([a-z])([A-Z])/g, "$1 $2"),
-      icon: "⚠️",
-      filterKey: "other",
-    };
+    return { label: "Overig", icon: "⚠️", filterKey: "overig" };
+  }
+
+  /** Primary type plus extra DATEX record types (event + closure, etc.). */
+  _itemTypes(item) {
+    const extra = Array.isArray(item && item.types) ? item.types : [];
+    const all = [item && item.type, ...extra].filter(Boolean);
+    return [...new Set(all.map((t) => String(t)))];
+  }
+
+  _itemMatchesFilter(item, typeFilter) {
+    if (!typeFilter || typeFilter === "all") {
+      return true;
+    }
+    return this._itemTypes(item).some((type) => {
+      const meta = this._typeMeta(type);
+      const raw = String(type || "").toLowerCase();
+      return meta.filterKey === typeFilter || raw.includes(typeFilter);
+    });
   }
 
   _items(attrs, stateObj) {
@@ -206,17 +221,38 @@ class NdwVerkeerCard extends HTMLElement {
     const typeFilter = this._filter;
     let out = items;
     if (typeFilter !== "all") {
-      out = out.filter((item) => {
-        const meta = this._typeMeta(item.type);
-        const raw = String(item.type || "").toLowerCase();
-        return (
-          meta.filterKey === typeFilter ||
-          raw.includes(typeFilter)
-        );
-      });
+      out = out.filter((item) => this._itemMatchesFilter(item, typeFilter));
     }
 
-    out = out.filter((item) => this._matchesDate(item, this._date, this._dateMode));
+    if (this._datePreset === "today") {
+      const today = this._dayKey(new Date());
+      out = out.filter((item) => this._matchesDate(item, today, "active"));
+    } else if (this._datePreset === "7d") {
+      const now = new Date();
+      const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const to = new Date(from);
+      to.setDate(to.getDate() + 6);
+      to.setHours(23, 59, 59);
+      out = out.filter((item) => {
+        const start = this._parseDate(item.start);
+        const end = this._parseDate(item.end);
+        const s = start || from;
+        const e = end || to;
+        return s <= to && e >= from;
+      });
+    } else {
+      out = out.filter((item) => this._matchesDate(item, this._date, this._dateMode));
+    }
+    const q = (this._search || "").trim().toLowerCase();
+    if (q) {
+      out = out.filter((item) => {
+        const blob = [item.description, item.location, item.municipality, item.type]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return blob.includes(q);
+      });
+    }
 
     const sort = this._sort || "start_asc";
     const dir = sort.endsWith("_desc") ? -1 : 1;
@@ -252,6 +288,15 @@ class NdwVerkeerCard extends HTMLElement {
     }
     if (action === "clear-date") {
       this._date = "";
+      this._datePreset = "all";
+      this._rerender();
+      return;
+    }
+    if (action === "date-preset") {
+      this._datePreset = target.getAttribute("data-preset") || "all";
+      if (this._datePreset !== "pick") {
+        this._date = "";
+      }
       this._rerender();
       return;
     }
@@ -273,6 +318,12 @@ class NdwVerkeerCard extends HTMLElement {
     }
     if (target.name === "ndw-date") {
       this._date = target.value || "";
+      this._datePreset = this._date ? "pick" : "all";
+      this._rerender();
+      return;
+    }
+    if (target.name === "ndw-search") {
+      this._search = target.value || "";
       this._rerender();
       return;
     }
@@ -287,36 +338,19 @@ class NdwVerkeerCard extends HTMLElement {
     }
   }
 
-  _isThinTitle(title) {
-    const t = (title || "").trim().toLowerCase();
-    if (!t) return true;
-    const thin = new Set([
-      "rijbaanafsluiting",
-      "rijstrookafsluiting",
-      "wegafsluiting",
-      "snelheidsbeperking",
-      "periodieke rijbaanafsluiting",
-      "geen details beschikbaar",
-      "onbekende locatie",
-    ]);
-    if (thin.has(t)) return true;
-    if (t.startsWith("gemeente ") || t.startsWith("provincie ")) return true;
-    return t.length < 12;
-  }
-
   _titleLine(item) {
     const loc = (item.location || "").trim();
     if (loc) {
       return loc;
     }
-    // Prefer description over municipality when DATEX has no street
-    const desc = (item.description || "").trim();
-    if (desc) {
-      return desc.length > 80 ? `${desc.slice(0, 79)}…` : desc;
-    }
     const muni = (item.municipality || "").trim();
     if (muni) {
       return muni;
+    }
+    // Fall back to first chunk of description
+    const desc = (item.description || "").trim();
+    if (desc) {
+      return desc.length > 80 ? `${desc.slice(0, 79)}…` : desc;
     }
     return "Onbekende locatie";
   }
@@ -326,14 +360,24 @@ class NdwVerkeerCard extends HTMLElement {
     const count = attrs.count != null ? attrs.count : items.length;
     const theme = dark ? "dark-theme" : "light-theme";
     const filters = [
-      ["all", "All"],
-      ["road", "Lane / road"],
-      ["maintenance", "Maintenance"],
-      ["reroute", "Reroute"],
-      ["event", "Event"],
-      ["accident", "Accident"],
-      ["closure", "Closure"],
+      ["all", "Alles"],
+      ["werkzaamheden", "Werkzaamheden"],
+      ["omleiding", "Omleiding"],
+      ["afsluiting", "Afsluiting"],
+      ["evenement", "Evenement"],
+      ["overig", "Overig"],
     ];
+    const datePresets = [
+      ["all", "Alle data"],
+      ["today", "Vandaag"],
+      ["7d", "7 dagen"],
+    ];
+    const datePresetHtml = datePresets
+      .map(([value, label]) => {
+        const active = this._datePreset === value ? "active" : "";
+        return `<button type="button" class="chip ${active}" data-action="date-preset" data-preset="${value}">${label}</button>`;
+      })
+      .join("");
     const filterHtml = filters
       .map(([value, label]) => {
         const active = this._filter === value ? "active" : "";
@@ -341,7 +385,6 @@ class NdwVerkeerCard extends HTMLElement {
       })
       .join("");
 
-    // Soft UI cap (80). Full list remains on sensor attributes.items / count.
     const rows = items
       .slice(0, 80)
       .map((item, index) => {
@@ -350,27 +393,31 @@ class NdwVerkeerCard extends HTMLElement {
         const desc = item.description || "";
         const shortDesc =
           !open && desc.length > 180 ? `${desc.slice(0, 179)}…` : desc;
-        const meta = this._typeMeta(item.type);
+        const metas = this._itemTypes(item).map((t) => this._typeMeta(t));
+        const seen = new Set();
+        const pills = metas
+          .filter((m) => {
+            if (seen.has(m.filterKey)) {
+              return false;
+            }
+            seen.add(m.filterKey);
+            return true;
+          })
+          .map((m) => `<span class="pill">${m.icon} ${this._esc(m.label)}</span>`)
+          .join("");
         const title = this._titleLine(item);
         const muni =
           item.municipality && item.municipality !== title
             ? `<span class="muni">${this._esc(item.municipality)}</span>`
             : "";
-        // When the title is a thin fallback (mgmt label / truncated desc), still
-        // show the description body so users see the full narrative.
-        const thinTitle = this._isThinTitle(title);
-        const showDesc =
-          shortDesc && (shortDesc !== title || (thinTitle && shortDesc.length > title.length))
-            ? `<p>${this._esc(shortDesc)}</p>`
-            : "";
         return `<article class="row ${open ? "open" : ""}" data-action="toggle" data-id="${this._esc(id)}">
           <div class="row-top">
-            <span class="pill">${meta.icon} ${this._esc(meta.label)}</span>
+            <span class="pills">${pills}</span>
             <span class="when">${this._esc(item.start || "")}${item.end ? " → " + this._esc(item.end) : ""}</span>
           </div>
           <h3 class="loc">${this._esc(title)}</h3>
           ${muni}
-          ${showDesc}
+          <p>${this._esc(shortDesc)}</p>
         </article>`;
       })
       .join("");
@@ -465,6 +512,7 @@ class NdwVerkeerCard extends HTMLElement {
             align-items: center;
             margin-bottom: 4px;
           }
+          .pills { display: flex; flex-wrap: wrap; gap: 4px; }
           .pill {
             font-size: .72rem;
             text-transform: uppercase;
@@ -472,6 +520,17 @@ class NdwVerkeerCard extends HTMLElement {
             padding: 2px 8px;
             border-radius: 999px;
             background: color-mix(in srgb, var(--warning-color, #f5a623) 22%, transparent);
+          }
+          .search {
+            width: 100%;
+            margin: 0 0 10px;
+            font: inherit;
+            font-size: .85rem;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid var(--divider-color);
+            background: var(--card-background-color);
+            color: var(--primary-text-color);
           }
           .when { color: var(--secondary-text-color); font-size: .78rem; }
           .loc {
@@ -493,36 +552,23 @@ class NdwVerkeerCard extends HTMLElement {
           }
         </style>
         <div class="header">
-          <h2>${this._esc(this.config.title || stateObj.attributes.friendly_name || "NDW Verkeer")}</h2>
-          <span class="muted">${this._esc(stateObj.state || "")}</span>
+          <h2>${this._esc(this.config.title || "Actuele Verkeershinder & Planning")}</h2>
+          <span class="muted">${this._esc(count)} meldingen</span>
         </div>
         <div class="stats">
-          <div class="stat"><b>${this._esc(count)}</b><span>matches</span></div>
-          <div class="stat"><b>${this._esc(items.length)}</b><span>shown</span></div>
-        </div>
-        <div class="toolbar">
-          <label>Date
-            <input type="date" name="ndw-date" value="${this._esc(this._date)}" />
-          </label>
-          <label>Filter mode
-            <select name="ndw-date-mode">
-              <option value="active"${this._dateMode === "active" ? " selected" : ""}>Active on day</option>
-              <option value="starting"${this._dateMode === "starting" ? " selected" : ""}>Starting that day</option>
-            </select>
-          </label>
-          <label>Sort
-            <select name="ndw-sort">
-              <option value="start_asc"${this._sort === "start_asc" ? " selected" : ""}>Start ↑</option>
-              <option value="start_desc"${this._sort === "start_desc" ? " selected" : ""}>Start ↓ (newest)</option>
-              <option value="end_asc"${this._sort === "end_asc" ? " selected" : ""}>End ↑</option>
-              <option value="end_desc"${this._sort === "end_desc" ? " selected" : ""}>End ↓</option>
-            </select>
-          </label>
-          <button type="button" class="chip" data-action="clear-date">Clear date</button>
+          <div class="stat"><b>${this._esc(count)}</b><span>totaal</span></div>
+          <div class="stat"><b>${this._esc(items.length)}</b><span>na filter</span></div>
+          <div class="stat"><b>${this._esc(items.length)}</b><span>getoond</span></div>
         </div>
         <div class="chips">${filterHtml}</div>
+        <div class="chips">${datePresetHtml}
+          <label class="chip ${this._datePreset === "pick" ? "active" : ""}">Datum
+            <input type="date" name="ndw-date" value="${this._esc(this._date)}" />
+          </label>
+        </div>
+        <input class="search" type="search" name="ndw-search" placeholder="Zoek in beschrijving, weg of plaats..." value="${this._esc(this._search)}" />
         <div class="list">
-          ${rows || "<p class='empty'>No traffic matches for this filter.</p>"}
+          ${rows || "<p class='empty'>Geen meldingen voor dit filter.</p>"}
         </div>
       </ha-card>
     `;
@@ -532,10 +578,12 @@ class NdwVerkeerCard extends HTMLElement {
   }
 }
 
-customElements.define("ndw_verkeer-card", NdwVerkeerCard);
+if (!customElements.get("ndw_verkeer-card")) {
+  customElements.define("ndw_verkeer-card", NdwVerkeerCard);
+}
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "ndw_verkeer-card",
   name: "NDW Verkeer Card",
-  description: "Traffic matches from the NDW Verkeer master sensor (location, date filter, sort).",
+  description: "Traffic matches from the NDW Verkeer master sensor (location, date filter, sort) by @DonTranQuiL",
 });
