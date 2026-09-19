@@ -1,4 +1,5 @@
 """DataUpdateCoordinator: stream-parse NDW gzip DATEX II feeds with conditional HTTP."""
+
 from __future__ import annotations
 
 import copy
@@ -131,9 +132,7 @@ def _format_dt(iso_or_display: str) -> str:
     return iso_or_display or "Onbekend"
 
 
-def _situation_group_id(
-    situation_id: str, record_id: str, creation_ref: str
-) -> str:
+def _situation_group_id(situation_id: str, record_id: str, creation_ref: str) -> str:
     """Stable event id: parent NDW03/RWS situation, not every RSC/DET/NDW18 clone."""
     for raw in (creation_ref, record_id, situation_id):
         if not raw:
@@ -213,9 +212,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             except Exception:
                 pass
 
-    def _extract_situation_elem(
-        self, sit_elem, now: datetime
-    ) -> dict[str, Any] | None:
+    def _extract_situation_elem(self, sit_elem, now: datetime) -> dict[str, Any] | None:
         """Fold every situationRecord under one <situation> into a single dict."""
         situation_id = sit_elem.attrib.get("id", "")
         severity = ""
@@ -352,10 +349,19 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         haystack = " ".join(
             filter(
                 None,
-                [final_desc, location, municipality, type_hinder, *unique_types, group_id],
+                [
+                    final_desc,
+                    location,
+                    municipality,
+                    type_hinder,
+                    *unique_types,
+                    group_id,
+                ],
             )
         ).lower()
-        if self.search_terms and not any(term in haystack for term in self.search_terms):
+        if self.search_terms and not any(
+            term in haystack for term in self.search_terms
+        ):
             return None
 
         item: dict[str, Any] = {
@@ -461,7 +467,7 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             muni = (sit.get("municipality") or "").strip().lower()
             start_m = _minute_key(sit.get("start", ""))
             end_m = _minute_key(sit.get("end", ""))
-            unique_key = f"{sit.get('id','')}|{loc}|{desc}|{muni}|{start_m}|{end_m}|{sit.get('type', '')}"
+            unique_key = f"{sit.get('id', '')}|{loc}|{desc}|{muni}|{start_m}|{end_m}|{sit.get('type', '')}"
             existing = unique_desc_situations.get(unique_key)
             if existing is None:
                 unique_desc_situations[unique_key] = sit
