@@ -3,24 +3,84 @@ name: Discord release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to announce (e.g. v1.0.5)
+        required: true
+        type: string
 
 jobs:
   notify:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Post the release embed
+      - name: Resolve release payload
+        id: release
         env:
-          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_NAME: ${{ github.event_name }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_NAME: ${{ github.event.release.name }}
           RELEASE_BODY: ${{ github.event.release.body }}
           RELEASE_URL: ${{ github.event.release.html_url }}
-          REPO: ${{ github.event.repository.full_name }}
-          REPO_NAME: ${{ github.event.repository.name }}
           PUBLISHED: ${{ github.event.release.published_at }}
           PRERELEASE: ${{ github.event.release.prerelease }}
           AUTHOR_LOGIN: ${{ github.event.release.author.login }}
+          REPO: ${{ github.repository }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            tag="${INPUT_TAG}"
+            json="$(gh api "repos/${REPO}/releases/tags/${tag}")"
+            {
+              echo "tag=${tag}"
+              echo "name=$(printf '%s' "$json" | jq -r '.name // .tag_name' | sed 's/%/%25/g')"
+              echo "url=$(printf '%s' "$json" | jq -r '.html_url')"
+              echo "published=$(printf '%s' "$json" | jq -r '.published_at // .created_at // ""')"
+              echo "prerelease=$(printf '%s' "$json" | jq -r '.prerelease')"
+              echo "author=$(printf '%s' "$json" | jq -r '.author.login // "DonTranQuiL"')"
+              echo "repo=${REPO}"
+              echo "repo_name=${REPO##*/}"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "body<<BODY_EOF"
+              printf '%s' "$json" | jq -r '.body // ""'
+              echo
+              echo "BODY_EOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "tag=${RELEASE_TAG}"
+              echo "name=${RELEASE_NAME}"
+              echo "url=${RELEASE_URL}"
+              echo "published=${PUBLISHED}"
+              echo "prerelease=${PRERELEASE}"
+              echo "author=${AUTHOR_LOGIN}"
+              echo "repo=${REPO}"
+              echo "repo_name=${REPO_NAME}"
+            } >> "$GITHUB_OUTPUT"
+            {
+              echo "body<<BODY_EOF"
+              printf '%s\n' "${RELEASE_BODY}"
+              echo "BODY_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post the release embed
+        env:
+          DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_NAME: ${{ steps.release.outputs.name }}
+          RELEASE_BODY: ${{ steps.release.outputs.body }}
+          RELEASE_URL: ${{ steps.release.outputs.url }}
+          REPO: ${{ steps.release.outputs.repo }}
+          REPO_NAME: ${{ steps.release.outputs.repo_name }}
+          PUBLISHED: ${{ steps.release.outputs.published }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          AUTHOR_LOGIN: ${{ steps.release.outputs.author }}
         run: |
           if [ -z "$DISCORD_RELEASE_WEBHOOK" ]; then
             echo "DISCORD_RELEASE_WEBHOOK is not set on this repository."
