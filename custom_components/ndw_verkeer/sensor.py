@@ -1,5 +1,6 @@
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.const import EntityCategory
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER
 
@@ -24,11 +25,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(entities)
 
 
-class NDWSensor(SensorEntity):
+class NDWSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
 
     def __init__(self, coordinator, entry):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self._attr_name = None  # Hoofdsensor krijgt de naam van het apparaat
         self._attr_unique_id = f"{entry.entry_id}_latest_hinder"
         self._attr_icon = "mdi:traffic-cone"
@@ -52,21 +53,29 @@ class NDWSensor(SensorEntity):
             return {}
 
         latest = self.coordinator.data[0]
+        items = list(self.coordinator.data)
         return {
             "id": latest.get("id", ""),
+            "type": latest.get("type", ""),
             "start": latest.get("start", "Onbekend"),
             "end": latest.get("end", "Onbekend"),
             "description": latest.get("description", ""),
-            "history": self.coordinator.data[1:],
+            "location": latest.get("location", ""),
+            "municipality": latest.get("municipality", ""),
+            "count": len(items),
+            # Full list for the Lovelace card. Prefer recorder exclude on this entity.
+            "items": items,
+            # Remaining matches (legacy). Prefer items for new dashboards.
+            "history": items[1:],
         }
 
 
-class NDWDiagnosticSensor(SensorEntity):
+class NDWDiagnosticSensor(CoordinatorEntity, SensorEntity):
     _attr_has_entity_name = True
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator, entry, key, name, device_class=None):
-        self.coordinator = coordinator
+        super().__init__(coordinator)
         self.key = key
         self._attr_name = name
         self._attr_unique_id = f"{entry.entry_id}_diag_{key}"

@@ -67,6 +67,55 @@ This custom component for Home Assistant allows you to monitor live traffic inci
 
 This integration was created with significant collaboration, testing, and debugging from **TranQuiL (@Malosaaa)**.
 
+
+## Lovelace card
+
+Copy `ndw_verkeer-card.js` into `/config/www/` and add a resource:
+
+```yaml
+lovelace:
+  resources:
+    - url: /local/ndw_verkeer-card.js
+      type: module
+```
+
+Card config (use the master NDW Verkeer entity, not a diagnostic):
+
+```yaml
+type: custom:ndw_verkeer-card
+entity: sensor.ndw_verkeer_<your_instance>
+title: NDW Verkeer
+# Optional:
+# sort: start_asc          # start_asc | start_desc | end_asc | end_desc
+# default_date: "2026-09-20"  # YYYY-MM-DD pre-select; leave empty for all dates
+# date_mode: active        # active = start<=day<=end; starting = starts that day
+```
+
+The card shows **location** as the title line (street/road when NDW provides it), then dates, then description. Use the date picker to filter items active on a day (or starting that day), type chips, and the sort control. Date-filter logic lives in the card JS (`_matchesDate`).
+
+Prefer recorder exclude on that master sensor: attributes `items` / `history` can be large.
+
+### Beta 1.0.5-beta.5 notes
+* Keeps **full situation record ids** (no more collapsing MAN/DET/EVE/RSC siblings into one card).
+* Search matches a **raw-ish human haystack** (values + location tags + type + municipality) before heavy cleaning; URL/UUID tags skipped so `A76` does not false-hit attachment GUIDs.
+* Location only accepts **short street/road titles**; diversion narratives and soft phrases like "Weg dicht…" stay in the description. `Bouw/Takel` still never becomes a location.
+* Descriptions keep useful public comments; short soft labels (`Beperking N`, `Omleiding N`) alone stay out; category-only junk is dropped without wiping the only narrative.
+* Lovelace card: thin titles still show the full description body; list UI soft-cap of **80** rows documented (sensor `items` remains complete).
+
+### Stable 1.0.5
+* Promotes the tested beta.5 line (full situation ids, DATEX location/description split, Lovelace card with filters).
+* Includes maintainer polish on the coordinator and card after soak testing.
+
+### Beta 1.0.5-beta.4 notes
+* Drops work-category junk from `location` (e.g. `Bouw/Takel, ,`).
+* Card title falls back to description when no street is available.
+
+### Beta 1.0.5-beta.3 notes
+* Extracts `location` / `municipality` from DATEX tags (`roadOrJunctionNumber`, road-like `value` texts, etc.) instead of leaving only "Gemeente X".
+* Softer description filters (still skips `.pdf` / verkeersbesluit / contact lines).
+* Smarter dedupe: distinct streets with the same municipality/dates are kept; gemeente-only clones in the same minute window collapse.
+* Lovelace card: location title, friendlier type labels/icons, sort + date filter.
+
 ***
 ## 🚀 Key Features
 
@@ -110,9 +159,13 @@ This integration was created with significant collaboration, testing, and debugg
 | :--- | :--- |
 | `start` | The exact start date and time of the incident/roadwork (DD-MM-YYYY HH:MM). |
 | `end` | The exact end date and time of the incident/roadwork (DD-MM-YYYY HH:MM). |
-| `description` | A clean, readable summary of the traffic situation, stripped of system codes. |
+| `description` | Narrative summary (impact / works text). Not invented street names. |
+| `location` | Street/road/junction when NDW provides it (`roadOrJunctionNumber` or road-like values). |
+| `municipality` | `Gemeente …` / `Provincie …` when present in the feed. |
 | `id` | The unique project identifier from the NDW feed. |
-| `history` | A chronological list of all other upcoming events, complete with their own dates, types, and descriptions. |
+| `items` | Full list of matches (preferred for the Lovelace card). |
+| `history` | Legacy: remaining matches after the latest (`items[1:]`). |
+| `count` | Number of matches. |
 
 ## 🛠 Services
 
@@ -142,14 +195,16 @@ cards:
         {% if states(entity) not in ['unknown', 'unavailable', 'Geen meldingen'] %}
         {% set type = states(entity) %}
         {% set icon = '🚧' if type in ['MaintenanceWorks', 'ConstructionWorks'] else '🔄' if type == 'ReroutingManagement' else '⛔' if type == 'RoadOrCarriagewayOrLaneManagement' else '🚴' if type == 'PublicEvent' else '⚠️' %}
-        {{ icon }} **{{ state_attr(entity, 'start') }} t/m {{ state_attr(entity, 'end') }}** *{{ state_attr(entity, 'description') | truncate(200, true, '...') }}*
+        {{ icon }} **{{ state_attr(entity, 'location') or state_attr(entity, 'municipality') or 'Locatie' }}** — {{ state_attr(entity, 'start') }} t/m {{ state_attr(entity, 'end') }}
+        *{{ state_attr(entity, 'description') | truncate(200, true, '...') }}*
         
         ---
         
-        {% if state_attr(entity, 'history') %}
-        {% for item in state_attr(entity, 'history') %}
+        {% if state_attr(entity, 'items') %}
+        {% for item in state_attr(entity, 'items')[1:] %}
         {% set h_icon = '🚧' if item.type in ['MaintenanceWorks', 'ConstructionWorks'] else '🔄' if item.type == 'ReroutingManagement' else '⛔' if item.type == 'RoadOrCarriagewayOrLaneManagement' else '🚴' if item.type == 'PublicEvent' else '⚠️' %}
-        {{ h_icon }} **{{ item.start }} t/m {{ item.end }}** *{{ item.description | truncate(200, true, '...') }}*
+        {{ h_icon }} **{{ item.location or item.municipality or 'Locatie' }}** — {{ item.start }} t/m {{ item.end }}
+        *{{ item.description | truncate(200, true, '...') }}*
         
         ---
         {% endfor %}
