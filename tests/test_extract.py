@@ -18,66 +18,97 @@ BETA5_FIXTURE = Path(__file__).parent / "fixtures" / "situation_beta5_patterns.x
 
 
 def _load_coordinator_module():
-    """Load coordinator.py with HA stubs, skipping package __init__ side effects."""
-    ha = types.ModuleType("homeassistant")
-    ha.__path__ = []
-    sys.modules["homeassistant"] = ha
-    for name in (
+    """Load coordinator.py with temporary HA stubs; restore sys.modules after.
+
+    Stubs must not leak into later tests (test_init / test_sensor), or they see
+    namespace packages at "(unknown location)" and fail to import real symbols.
+    """
+    stub_names = (
+        "homeassistant",
         "homeassistant.helpers",
         "homeassistant.helpers.aiohttp_client",
         "homeassistant.helpers.update_coordinator",
         "homeassistant.util",
         "homeassistant.util.dt",
-    ):
-        mod = types.ModuleType(name)
-        mod.__path__ = []
-        sys.modules[name] = mod
-
-    sys.modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = (
-        lambda hass: None
+        "custom_components",
+        "custom_components.ndw_verkeer",
+        "custom_components.ndw_verkeer.const",
+        "custom_components.ndw_verkeer.cache",
+        "custom_components.ndw_verkeer.coordinator",
     )
+    saved = {name: sys.modules.get(name) for name in stub_names}
+    before = set(sys.modules)
 
-    class _DataUpdateCoordinator:
-        def __init__(self, *args, **kwargs):
-            pass
+    try:
+        ha = types.ModuleType("homeassistant")
+        ha.__path__ = []
+        sys.modules["homeassistant"] = ha
+        for name in (
+            "homeassistant.helpers",
+            "homeassistant.helpers.aiohttp_client",
+            "homeassistant.helpers.update_coordinator",
+            "homeassistant.util",
+            "homeassistant.util.dt",
+        ):
+            mod = types.ModuleType(name)
+            mod.__path__ = []
+            sys.modules[name] = mod
 
-    sys.modules[
-        "homeassistant.helpers.update_coordinator"
-    ].DataUpdateCoordinator = _DataUpdateCoordinator
-    sys.modules["homeassistant.util.dt"].utcnow = lambda: datetime.now(timezone.utc)
+        sys.modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = (
+            lambda hass: None
+        )
 
-    sys.modules.setdefault("custom_components", types.ModuleType("custom_components"))
-    pkg = types.ModuleType("custom_components.ndw_verkeer")
-    pkg.__path__ = [str(ROOT / "custom_components" / "ndw_verkeer")]
-    sys.modules["custom_components.ndw_verkeer"] = pkg
+        class _DataUpdateCoordinator:
+            def __init__(self, *args, **kwargs):
+                pass
 
-    const_path = ROOT / "custom_components" / "ndw_verkeer" / "const.py"
-    spec_c = importlib.util.spec_from_file_location(
-        "custom_components.ndw_verkeer.const", const_path
-    )
-    const = importlib.util.module_from_spec(spec_c)
-    sys.modules["custom_components.ndw_verkeer.const"] = const
-    assert spec_c.loader is not None
-    spec_c.loader.exec_module(const)
+        sys.modules[
+            "homeassistant.helpers.update_coordinator"
+        ].DataUpdateCoordinator = _DataUpdateCoordinator
+        sys.modules["homeassistant.util.dt"].utcnow = lambda: datetime.now(timezone.utc)
 
-    cache_mod = types.ModuleType("custom_components.ndw_verkeer.cache")
+        sys.modules["custom_components"] = types.ModuleType("custom_components")
+        pkg = types.ModuleType("custom_components.ndw_verkeer")
+        pkg.__path__ = [str(ROOT / "custom_components" / "ndw_verkeer")]
+        sys.modules["custom_components.ndw_verkeer"] = pkg
 
-    class NDWCache:
-        def __init__(self, *args, **kwargs):
-            pass
+        const_path = ROOT / "custom_components" / "ndw_verkeer" / "const.py"
+        spec_c = importlib.util.spec_from_file_location(
+            "custom_components.ndw_verkeer.const", const_path
+        )
+        const = importlib.util.module_from_spec(spec_c)
+        sys.modules["custom_components.ndw_verkeer.const"] = const
+        assert spec_c.loader is not None
+        spec_c.loader.exec_module(const)
 
-    cache_mod.NDWCache = NDWCache
-    sys.modules["custom_components.ndw_verkeer.cache"] = cache_mod
+        cache_mod = types.ModuleType("custom_components.ndw_verkeer.cache")
 
-    coord_path = ROOT / "custom_components" / "ndw_verkeer" / "coordinator.py"
-    spec = importlib.util.spec_from_file_location(
-        "custom_components.ndw_verkeer.coordinator", coord_path
-    )
-    coord_mod = importlib.util.module_from_spec(spec)
-    sys.modules["custom_components.ndw_verkeer.coordinator"] = coord_mod
-    assert spec.loader is not None
-    spec.loader.exec_module(coord_mod)
-    return coord_mod.NDWVerkeerCoordinator
+        class NDWCache:
+            def __init__(self, *args, **kwargs):
+                pass
+
+        cache_mod.NDWCache = NDWCache
+        sys.modules["custom_components.ndw_verkeer.cache"] = cache_mod
+
+        coord_path = ROOT / "custom_components" / "ndw_verkeer" / "coordinator.py"
+        spec = importlib.util.spec_from_file_location(
+            "custom_components.ndw_verkeer.coordinator", coord_path
+        )
+        coord_mod = importlib.util.module_from_spec(spec)
+        sys.modules["custom_components.ndw_verkeer.coordinator"] = coord_mod
+        assert spec.loader is not None
+        spec.loader.exec_module(coord_mod)
+        return coord_mod.NDWVerkeerCoordinator
+    finally:
+        # Drop anything we newly introduced under these trees.
+        for name in set(sys.modules) - before:
+            if name.startswith(("homeassistant", "custom_components")):
+                sys.modules.pop(name, None)
+        for name, previous in saved.items():
+            if previous is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
 
 
 NDWVerkeerCoordinator = _load_coordinator_module()
