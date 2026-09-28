@@ -1,0 +1,2 @@
+# Dependabot cannot update action pins in CRLF workflow files; keep .github in LF.
+.github/** text eol=lf

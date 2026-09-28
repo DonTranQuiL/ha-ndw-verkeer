@@ -1,4 +1,6 @@
 version: 2
+# Keep workflow files in LF line endings (see .gitattributes): Dependabot cannot
+# rewrite action pins in CRLF files and fails with "No files changed!".
 updates:
   # Keep GitHub Actions up to date automatically
   - package-ecosystem: "github-actions"

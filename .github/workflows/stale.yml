@@ -35,3 +35,6 @@ jobs:
           
           # Issues with these labels will never be marked stale (great for confirmed bugs or feature requests you want to keep tracking)
           exempt-issue-labels: "bug,enhancement,pinned"
+
+          # Never mark/close Dependabot PRs: a closed Dependabot PR makes Dependabot skip that version for good
+          exempt-pr-labels: "dependencies"

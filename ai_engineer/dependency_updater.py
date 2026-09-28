@@ -22,8 +22,8 @@ try:
         if match:
             current_version = match.group(1)
 except FileNotFoundError:
-    print("Could not find requirements.txt")
-    exit(1)
+    print("No requirements.txt in this repository; nothing to update.")
+    exit(0)
 
 # 3. Compare versions
 if not current_version or current_version == latest_version:
