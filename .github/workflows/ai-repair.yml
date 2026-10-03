@@ -41,6 +41,9 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: python ai_engineer/repair.py
 
+      - name: Drop the log scratch file
+        run: rm -f failed_logs.txt
+
       - name: Create Pull Request with Fix
         uses: peter-evans/create-pull-request@v8
         with:

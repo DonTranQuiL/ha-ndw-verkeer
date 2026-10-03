@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'custom_components/global_earthquakes/**'
+      - 'custom_components/**'
 
 jobs:
   ai-review:
