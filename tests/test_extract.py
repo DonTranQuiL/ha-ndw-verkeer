@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import types
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 from xml.etree.ElementTree import fromstring
@@ -65,7 +65,7 @@ def _load_coordinator_module():
         sys.modules[
             "homeassistant.helpers.update_coordinator"
         ].DataUpdateCoordinator = _DataUpdateCoordinator
-        sys.modules["homeassistant.util.dt"].utcnow = lambda: datetime.now(timezone.utc)
+        sys.modules["homeassistant.util.dt"].utcnow = lambda: datetime.now(UTC)
 
         sys.modules["custom_components"] = types.ModuleType("custom_components")
         pkg = types.ModuleType("custom_components.ndw_verkeer")
@@ -142,7 +142,7 @@ def _situation(path: Path, situation_id: str):
 
 @pytest.fixture
 def now_fixed():
-    return datetime(2026, 9, 19, 0, 0, tzinfo=timezone.utc)
+    return datetime(2026, 9, 19, 0, 0, tzinfo=UTC)
 
 
 def test_extract_prefers_road_or_junction_for_location(now_fixed):

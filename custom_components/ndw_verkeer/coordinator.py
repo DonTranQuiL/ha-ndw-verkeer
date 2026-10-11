@@ -113,7 +113,7 @@ def _parse_dt(iso_or_display: str) -> datetime | None:
     if not iso_or_display or iso_or_display == "Onbekend":
         return None
     try:
-        return datetime.fromisoformat(iso_or_display.replace("Z", "+00:00"))
+        return datetime.fromisoformat(iso_or_display)
     except Exception:
         return None
 
