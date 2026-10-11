@@ -54,6 +54,15 @@
   <a href="https://ko-fi.com/DonTranQuiL">
     <img src="https://img.shields.io/badge/buy%20me%20a%20coffee-donate-ffdd00?style=for-the-badge" alt="Donate">
   </a>
+  <a href="https://liberapay.com/Malosaaa/donate">
+    <img src="https://liberapay.com/assets/widgets/donate.svg" alt="Donate using Liberapay" height="28">
+  </a>
+  <a href="https://liberapay.com/Malosaaa/donate">
+    <img src="https://img.shields.io/liberapay/patrons/Malosaaa.svg?logo=liberapay&style=for-the-badge" alt="Liberapay patrons">
+  </a>
+  <a href="https://liberapay.com/Malosaaa/donate">
+    <img src="https://img.shields.io/liberapay/goal/Malosaaa.svg?logo=liberapay&style=for-the-badge" alt="Liberapay goal">
+  </a>
   <a href="https://community.home-assistant.io/">
     <img src="https://img.shields.io/badge/community-forum-007ec6?style=for-the-badge" alt="Community">
   </a>
