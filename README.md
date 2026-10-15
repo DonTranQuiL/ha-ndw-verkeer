@@ -1,7 +1,7 @@
 <div align="center">
 
-# 🌌 DW Verkeer Integration for Home Assistant
-**A roadworks, and planned events integration for the dutch muncipality for Home Assistant.**
+# 🌌 NDW Verkeer Integration for Home Assistant
+**A roadworks, and planned events integration for Dutch municipalities in Home Assistant.**
 </div>
 
 <p align="center">
