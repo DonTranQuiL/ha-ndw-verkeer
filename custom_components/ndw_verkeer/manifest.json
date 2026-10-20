@@ -2,10 +2,6 @@
   "domain": "ndw_verkeer",
   "name": "NDW Verkeer",
   "after_dependencies": [],
-  "categories": [
-    "vehicles_transport",
-    "local_services"
-  ],
   "codeowners": [
     "@DonTranQuiL"
   ],
