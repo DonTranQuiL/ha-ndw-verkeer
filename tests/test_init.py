@@ -5,6 +5,7 @@ from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.ndw_verkeer import (
+    async_setup,
     async_setup_entry,
     async_unload_entry,
     update_listener,
@@ -43,6 +44,7 @@ async def test_async_setup_and_unload_entry(hass: HomeAssistant, mock_coordinato
         "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
         return_value=True,
     ) as mock_forward:
+        assert await async_setup(hass, {}) is True
         assert await async_setup_entry(hass, entry) is True
 
         assert DOMAIN in hass.data
@@ -86,6 +88,7 @@ async def test_services(hass: HomeAssistant, mock_coordinator):
         "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
         return_value=True,
     ):
+        await async_setup(hass, {})
         await async_setup_entry(hass, entry)
 
     coord = hass.data[DOMAIN][entry.entry_id]

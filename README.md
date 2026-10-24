@@ -82,16 +82,12 @@ This integration was created with significant collaboration, testing, and debugg
 
 ## Lovelace card
 
-Copy `ndw_verkeer-card.js` into `/config/www/` and add a resource:
+The card ships with the integration and **loads automatically**: you don't need to copy any
+file or add a dashboard resource. After installing or updating, restart Home Assistant and do a
+hard refresh of your browser. If you added `/local/ndw_verkeer-card.js` as a resource by hand
+in an older version, remove that resource (and the file in `/config/www/`).
 
-```yaml
-lovelace:
-  resources:
-    - url: /local/ndw_verkeer-card.js
-      type: module
-```
-
-Card config (use the master NDW Verkeer entity, not a diagnostic):
+Card type `custom:ndw_verkeer-card`. Config (use the master NDW Verkeer entity, not a diagnostic):
 
 ```yaml
 type: custom:ndw_verkeer-card

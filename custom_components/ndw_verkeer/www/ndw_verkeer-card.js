@@ -1,5 +1,5 @@
 /**
- * NDW Verkeer Lovelace card (1.0.5).
+ * NDW Verkeer Lovelace card (1.0.6).
  * Custom element: ndw_verkeer-card
  * Point entity at the master NDW Verkeer sensor (attributes.items).
  *

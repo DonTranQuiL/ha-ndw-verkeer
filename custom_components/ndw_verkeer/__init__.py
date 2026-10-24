@@ -1,12 +1,53 @@
-import logging
+"""The NDW Verkeer integration."""
 
+import logging
+import os
+
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import NDWVerkeerCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+CARD_URL_BASE = f"/{DOMAIN}"
+CARD_FILE = "ndw_verkeer-card.js"
+CARD_VERSION = "1.0.6"
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the bundled card and the services once."""
+    hass.data.setdefault(DOMAIN, {})
+    www = os.path.join(os.path.dirname(__file__), "www")
+    try:
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(CARD_URL_BASE, www, True)]
+        )
+        from homeassistant.components.frontend import add_extra_js_url
+
+        add_extra_js_url(hass, f"{CARD_URL_BASE}/{CARD_FILE}?v={CARD_VERSION}")
+    except Exception as err:
+        _LOGGER.warning("Could not register the NDW Verkeer card: %s", err)
+
+    async def handle_refresh(call: ServiceCall) -> None:
+        for coord in list(hass.data.get(DOMAIN, {}).values()):
+            coord._is_first_run = False  # Forceer download bij handmatige refresh
+            await coord.async_request_refresh()
+
+    async def handle_clear_files(call: ServiceCall) -> None:
+        for coord in list(hass.data.get(DOMAIN, {}).values()):
+            coord._feed_state = {}
+            await hass.async_add_executor_job(coord.cache.clear_cache)
+            await hass.async_add_executor_job(coord.clear_debug_file)
+
+    hass.services.async_register(DOMAIN, "refresh", handle_refresh)
+    hass.services.async_register(DOMAIN, "clear_files", handle_clear_files)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -29,20 +70,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
-
-    async def handle_refresh(call: ServiceCall):
-        for coord in hass.data[DOMAIN].values():
-            coord._is_first_run = False  # Forceer download bij handmatige refresh
-            await coord.async_request_refresh()
-
-    async def handle_clear_files(call: ServiceCall):
-        for coord in hass.data[DOMAIN].values():
-            coord._feed_state = {}
-            await hass.async_add_executor_job(coord.cache.clear_cache)
-            await hass.async_add_executor_job(coord.clear_debug_file)
-
-    hass.services.async_register(DOMAIN, "refresh", handle_refresh)
-    hass.services.async_register(DOMAIN, "clear_files", handle_clear_files)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(update_listener))

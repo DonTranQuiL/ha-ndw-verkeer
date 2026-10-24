@@ -422,30 +422,43 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
         bucket[base_id] = _richer(prev, parsed)
 
     async def _parse_feed_response(self, response) -> dict[str, dict[str, Any]]:
-        """Stream-decompress and pull-parse a gzip DATEX II SituationPublication."""
+        """Stream-decompress and pull-parse a gzip DATEX II SituationPublication.
+
+        Decompression and XML parsing are CPU heavy for the national dumps, so
+        every chunk is processed in the executor to keep the event loop free.
+        """
         parser = XMLPullParser(["end"])
         decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
         now = dt_util.utcnow()
         situations: dict[str, dict[str, Any]] = {}
 
-        async for chunk in response.content.iter_chunked(64 * 1024):
+        async for chunk in response.content.iter_chunked(256 * 1024):
+            await self.hass.async_add_executor_job(
+                self._process_chunk, parser, decompressor, chunk, now, situations
+            )
+        await self.hass.async_add_executor_job(
+            self._process_chunk, parser, decompressor, None, now, situations
+        )
+        return situations
+
+    def _process_chunk(
+        self,
+        parser: XMLPullParser,
+        decompressor,
+        chunk: bytes | None,
+        now: datetime,
+        situations: dict[str, dict[str, Any]],
+    ) -> None:
+        """Decompress one chunk (None = flush) and collect finished situations."""
+        if chunk is None:
+            leftover = decompressor.flush()
+            if leftover:
+                parser.feed(leftover)
+            parser.close()
+        else:
             uncompressed_chunk = decompressor.decompress(chunk)
             if uncompressed_chunk:
                 parser.feed(uncompressed_chunk)
-            for _event, elem in parser.read_events():
-                tag = _local_tag(elem.tag)
-                if tag != "situation":
-                    continue
-                parsed = self._extract_situation_elem(elem, now)
-                elem.clear()
-                if parsed is None:
-                    continue
-                self._merge_into(situations, parsed)
-
-        leftover = decompressor.flush()
-        if leftover:
-            parser.feed(leftover)
-        parser.close()
         for _event, elem in parser.read_events():
             if _local_tag(elem.tag) != "situation":
                 continue
@@ -454,8 +467,6 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             if parsed is None:
                 continue
             self._merge_into(situations, parsed)
-
-        return situations
 
     def _merge_and_format(
         self, all_situations: dict[str, dict[str, Any]]
@@ -575,13 +586,15 @@ class NDWVerkeerCoordinator(DataUpdateCoordinator):
             return self.last_data
 
     async def _write_debug(self, content: str) -> None:
-        current_dir = os.path.dirname(__file__)
-        debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
+        debug_path = self.hass.config.path(
+            f".ndw_verkeer_debug_{self.instance_name}.txt"
+        )
         await self.hass.async_add_executor_job(
             self._write_debug_file_sync, debug_path, content
         )
 
     def clear_debug_file(self):
-        current_dir = os.path.dirname(__file__)
-        debug_path = os.path.join(current_dir, f"ndw_debug_{self.instance_name}.txt")
+        debug_path = self.hass.config.path(
+            f".ndw_verkeer_debug_{self.instance_name}.txt"
+        )
         self._clear_debug_file_sync(debug_path)

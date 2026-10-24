@@ -1,0 +1,47 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "NDW Verkeer",
+        "description": "Track NDW road works, closures and events that match your search terms.",
+        "data": {
+          "instance_name": "Instance name",
+          "search_terms": "Search terms (comma separated, e.g. municipality, road number)",
+          "scan_interval": "Update interval (seconds, minimum 300)"
+        }
+      }
+    },
+    "error": {
+      "required": "This field is required.",
+      "invalid_scan_interval": "The update interval must be at least 300 seconds.",
+      "invalid_terms": "Enter at least one search term."
+    },
+    "abort": {
+      "already_configured": "An instance with this name is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "NDW Verkeer options",
+        "data": {
+          "search_terms": "Search terms (comma separated)",
+          "scan_interval": "Update interval (seconds, minimum 300)"
+        }
+      }
+    },
+    "error": {
+      "invalid_scan_interval": "The update interval must be at least 300 seconds."
+    }
+  },
+  "services": {
+    "refresh": {
+      "name": "Refresh NDW Verkeer",
+      "description": "Downloads the latest DATEX II feeds from NDW right away."
+    },
+    "clear_files": {
+      "name": "Clear cache and debug logs",
+      "description": "Removes the local JSON cache and debug log files for all NDW Verkeer instances."
+    }
+  }
+}
