@@ -61,6 +61,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator._feed_state = feed_state
     # Force a fresh download when search terms changed since cache was written
     if cached_terms and list(cached_terms) != list(coordinator.search_terms):
+        # Drop cached situations and conditional-request state (ETag /
+        # Last-Modified): a 304 would otherwise reuse results filtered with
+        # the old terms until the feed changes.
+        coordinator._feed_state = {}
+        coordinator.last_data = []
         coordinator._is_first_run = False
         _LOGGER.debug(
             "Zoektermen gewijzigd t.o.v. cache; eerste run downloadt opnieuw."

@@ -100,3 +100,51 @@ async def test_services(hass: HomeAssistant, mock_coordinator):
     await hass.services.async_call(DOMAIN, "clear_files", blocking=True)
     coord.cache.clear_cache.assert_called_once()
     coord.clear_debug_file.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_changed_terms_drops_feed_state(
+    hass: HomeAssistant, mock_coordinator
+):
+    """Changed search terms must discard cached situations and ETag state."""
+    mock_coord = mock_coordinator.return_value
+    mock_coord.search_terms = ["A12"]
+    mock_coord.cache.load_cache_bundle = MagicMock(
+        return_value=(
+            [{"id": "old"}],
+            {"https://feed": {"etag": "x", "situations": [{"id": "old"}]}},
+            ["A2"],
+        )
+    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"instance_name": "Test"})
+    entry.add_to_hass(hass)
+    with patch(
+        "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
+        return_value=True,
+    ):
+        assert await async_setup_entry(hass, entry) is True
+    assert mock_coord._feed_state == {}
+    assert mock_coord.last_data == []
+    assert mock_coord._is_first_run is False
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_same_terms_keeps_feed_state(
+    hass: HomeAssistant, mock_coordinator
+):
+    """Unchanged search terms keep the cache for conditional requests."""
+    mock_coord = mock_coordinator.return_value
+    mock_coord.search_terms = ["A2"]
+    state = {"https://feed": {"etag": "x", "situations": [{"id": "s"}]}}
+    mock_coord.cache.load_cache_bundle = MagicMock(
+        return_value=([{"id": "s"}], state, ["A2"])
+    )
+    entry = MockConfigEntry(domain=DOMAIN, data={"instance_name": "Test"})
+    entry.add_to_hass(hass)
+    with patch(
+        "homeassistant.config_entries.ConfigEntries.async_forward_entry_setups",
+        return_value=True,
+    ):
+        assert await async_setup_entry(hass, entry) is True
+    assert mock_coord._feed_state == state
+    assert mock_coord.last_data == [{"id": "s"}]
