@@ -138,8 +138,15 @@ Prefer recorder exclude on that master sensor: attributes `items` / `history` ca
 
 ## 🛠 Installation
 
-### Method 1: HACS (Recommended)
-**NDW Verkeer** is submitted to the **HACS default list**, so you can install it straight from the HACS store:
+### Method 1: Marketplace (Home Assistant 2026.11 and newer, recommended)
+
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=DonTranQuiL&repository=ha-ndw-verkeer&category=integration)
+
+1. In Home Assistant, go to **Settings > Marketplace** and search for **NDW Verkeer** (or use the button above).
+2. Open it and select **Install**. The setup starts right away, no restart needed.
+
+### Method 2: HACS (Home Assistant before 2026.11)
+**NDW Verkeer** is in the **HACS default list**, so you can install it straight from the HACS store:
 
 1. Open **HACS** in your sidebar and search for **NDW Verkeer**.
 2. Open it and click **Download**.
@@ -152,7 +159,7 @@ If NDW Verkeer does not show up in the HACS search (yet), click the three dots (
 
 </details>
 
-### Method 2: Manual
+### Method 3: Manual
 1. Download the `ndw_verkeer` folder from this repo.
 2. Copy it into your Home Assistant `custom_components/` directory.
 3. **Restart Home Assistant.**
