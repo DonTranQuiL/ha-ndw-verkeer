@@ -4,6 +4,10 @@
   "after_dependencies": [
     "frontend"
   ],
+  "categories": [
+    "vehicles_transport",
+    "local_services"
+  ],
   "codeowners": [
     "@DonTranQuiL"
   ],
